@@ -11,9 +11,12 @@ class Settings(BaseSettings):
     CLOUDINARY_API_KEY: str = ""
     CLOUDINARY_API_SECRET: str = ""
 
-    # Groq — texto y visión (todo gratis)
+    # Groq — texto (voz y recetas) — gratis
     GROQ_API_KEY: str = ""
     GROQ_MODEL: str = "llama-3.1-8b-instant"
+
+    # OpenRouter — visión (fotos de facturas) — gratis con crédito inicial
+    OPENROUTER_API_KEY: str = ""
 
     FRONTEND_URL: str = "http://localhost:5173"
 
