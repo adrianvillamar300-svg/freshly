@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Package, Edit2, Trash2, Check, X } from 'lucide-react'
-import { formatDistanceToNow } from 'date-fns'
+import { Search, Package, Edit2, Trash2, Check, X, Minus, Plus, AlertTriangle, Clock, Thermometer } from 'lucide-react'
+import { formatDistanceToNow, format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
@@ -9,106 +9,141 @@ import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
 import { EmptyState } from '../components/ui/EmptyState'
 import { ListItemSkeleton } from '../components/ui/Skeleton'
+import { Badge } from '../components/ui/Badge'
 import { FreshlyDock } from '../components/layout/FloatingDock'
 import { useToast } from '../components/ui/Toast'
 import { inventoryApi } from '../lib/api'
 import type { InventoryItem, InventoryItemCreate } from '../types'
 
-const UNITS = ['kg', 'g', 'L', 'ml', 'unidad', 'docena', 'caja', 'bolsa', 'lata', 'paquete']
+const UNITS = ['unidad','kg','g','L','ml','docena','caja','bolsa','lata','paquete']
+const LOCATIONS = [
+  { value:'refrigerator', label:'🧊 Refrigerador', color:'#6495ED' },
+  { value:'freezer', label:'❄️ Congelador', color:'#89CFF0' },
+  { value:'pantry', label:'🏠 Despensa', color:'#3ED598' },
+  { value:'cabinet', label:'🗄️ Armario', color:'#F5B841' },
+]
 
-interface ItemFormData {
-  food_name: string
-  quantity: string
-  unit: string
+function locationLabel(loc?: string|null) {
+  return LOCATIONS.find(l=>l.value===loc)?.label ?? '🏠 Despensa'
+}
+function locationColor(loc?: string|null) {
+  return LOCATIONS.find(l=>l.value===loc)?.color ?? 'var(--primary)'
+}
+
+function ExpiryBadge({ item }: { item: InventoryItem }) {
+  const { days_remaining, expiry_status } = item
+  if (days_remaining == null) return null
+
+  const config = {
+    expired:  { color:'var(--danger)',  bg:'var(--danger-dim)',  text: 'Caducado' },
+    critical: { color:'var(--danger)',  bg:'var(--danger-dim)',  text: `${days_remaining}d` },
+    warning:  { color:'var(--warning)', bg:'var(--warning-dim)', text: `${days_remaining}d` },
+    ok:       { color:'var(--text-muted)', bg:'var(--surface-2)', text: `${days_remaining}d` },
+  }[expiry_status ?? 'ok'] ?? { color:'var(--text-muted)', bg:'var(--surface-2)', text:`${days_remaining}d` }
+
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:'4px', padding:'3px 8px', background:config.bg, borderRadius:'100px', fontSize:'11px', fontWeight:600, color:config.color, whiteSpace:'nowrap' }}>
+      <Clock size={10}/>
+      {config.text}
+    </div>
+  )
 }
 
 function ItemForm({ initial, onSave, onCancel, loading }: {
-  initial?: ItemFormData
-  onSave: (d: ItemFormData) => void
-  onCancel: () => void
-  loading: boolean
+  initial?: { food_name:string; quantity:string; unit:string; storage_location:string; expiry_days:string }
+  onSave:(d:{ food_name:string; quantity:string; unit:string; storage_location:string; expiry_days:string })=>void
+  onCancel:()=>void; loading:boolean
 }) {
-  const [form, setForm] = useState<ItemFormData>(initial ?? { food_name: '', quantity: '', unit: 'unidad' })
-
-  const update = (k: keyof ItemFormData) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-    setForm(prev => ({ ...prev, [k]: e.target.value }))
+  const [form, setForm] = useState(initial ?? { food_name:'', quantity:'1', unit:'unidad', storage_location:'pantry', expiry_days:'' })
+  const u = (k:string) => (e:React.ChangeEvent<HTMLInputElement|HTMLSelectElement>) => setForm(p=>({...p,[k]:e.target.value}))
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      <Input
-        label="Alimento"
-        placeholder="Ej: Manzanas"
-        value={form.food_name}
-        onChange={update('food_name')}
-        autoFocus
-      />
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-        <Input
-          type="number"
-          label="Cantidad"
-          placeholder="0"
-          min="0"
-          step="0.1"
-          value={form.quantity}
-          onChange={update('quantity')}
-        />
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <label style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-secondary)' }}>Unidad</label>
-          <select
-            value={form.unit}
-            onChange={update('unit')}
-            style={{
-              height: '42px',
-              padding: '0 14px',
-              background: 'var(--surface)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: 'var(--radius-sm)',
-              color: 'var(--text)',
-              fontSize: '14px',
-              cursor: 'pointer',
-            }}
-          >
-            {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+    <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+      <Input label="Alimento" placeholder="Ej: Manzanas" value={form.food_name} onChange={u('food_name')} autoFocus />
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
+        <Input type="number" label="Cantidad" placeholder="0" min="0" step="0.1" value={form.quantity} onChange={u('quantity')} />
+        <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+          <label style={{ fontSize:'13px', fontWeight:500, color:'var(--text-secondary)' }}>Unidad</label>
+          <select value={form.unit} onChange={u('unit')} style={{ height:'42px', padding:'0 10px', background:'var(--surface)', border:'1px solid var(--border-subtle)', borderRadius:'var(--radius-sm)', color:'var(--text)', fontSize:'13px' }}>
+            {UNITS.map(u=><option key={u} value={u}>{u}</option>)}
           </select>
         </div>
       </div>
-      <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '4px' }}>
+
+      <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+        <label style={{ fontSize:'13px', fontWeight:500, color:'var(--text-secondary)' }}>¿Dónde lo guardas?</label>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'6px' }}>
+          {LOCATIONS.map(loc=>(
+            <button key={loc.value} onClick={()=>setForm(p=>({...p,storage_location:loc.value}))} style={{
+              padding:'9px 12px', borderRadius:'var(--radius-sm)', textAlign:'left',
+              background:form.storage_location===loc.value?`${loc.color}15`:'var(--surface-2)',
+              border:`1px solid ${form.storage_location===loc.value?loc.color:'var(--border-subtle)'}`,
+              cursor:'pointer', transition:'all var(--transition)', fontSize:'13px',
+              color:form.storage_location===loc.value?loc.color:'var(--text-secondary)',
+              fontWeight:form.storage_location===loc.value?600:400,
+            }}>
+              {loc.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <Input type="number" label="Días de duración (opcional)" placeholder="Se calcula automáticamente" min="1" value={form.expiry_days} onChange={u('expiry_days')} hint="Déjalo vacío para que Freshly lo calcule según el alimento" />
+
+      <div style={{ display:'flex', gap:'10px', justifyContent:'flex-end', marginTop:'4px' }}>
         <Button variant="ghost" onClick={onCancel}>Cancelar</Button>
-        <Button loading={loading} onClick={() => onSave(form)} icon={<Check size={15} />}>
-          Guardar
-        </Button>
+        <Button loading={loading} icon={<Check size={15}/>} onClick={()=>onSave(form)}>Guardar</Button>
       </div>
     </div>
   )
 }
 
-function InlineEdit({ item, onDone }: { item: InventoryItem; onDone: () => void }) {
+function ConsumeModal({ item, onClose, onDone }: { item:InventoryItem; onClose:()=>void; onDone:(updated:InventoryItem|null)=>void }) {
   const { toast } = useToast()
+  const [amount, setAmount] = useState(1)
   const [loading, setLoading] = useState(false)
 
-  const save = async (data: ItemFormData) => {
+  const consume = async () => {
     setLoading(true)
     try {
-      await inventoryApi.update(item.id, {
-        food_name: data.food_name,
-        quantity: parseFloat(data.quantity),
-        unit: data.unit,
-      })
-      toast('Alimento actualizado')
-      onDone()
-    } catch { toast('Error al actualizar', 'error') }
-    finally { setLoading(false) }
+      const updated = await inventoryApi.consume(item.id, amount)
+      toast(`✅ Consumiste ${amount} ${item.unit} de ${item.food_name}`)
+      onDone(updated.quantity === 0 ? null : updated)
+      onClose()
+    } catch { toast('Error al consumir','error') } finally { setLoading(false) }
   }
 
   return (
-    <div style={{ padding: '12px', background: 'var(--surface-2)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
-      <ItemForm
-        initial={{ food_name: item.food_name, quantity: String(item.quantity), unit: item.unit }}
-        onSave={save}
-        onCancel={onDone}
-        loading={loading}
-      />
-    </div>
+    <Modal isOpen onClose={onClose} title={`Consumir — ${item.food_name}`} size="sm">
+      <div style={{ display:'flex', flexDirection:'column', gap:'20px' }}>
+        <div style={{ textAlign:'center', padding:'16px 0' }}>
+          <p style={{ fontSize:'13px', color:'var(--text-secondary)', marginBottom:'16px' }}>
+            Tienes <strong style={{ color:'var(--text)' }}>{item.quantity} {item.unit}</strong> disponibles
+          </p>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:'16px' }}>
+            <button onClick={()=>setAmount(a=>Math.max(0.5,+(a-0.5).toFixed(1)))} style={{ width:'40px', height:'40px', borderRadius:'50%', background:'var(--surface-2)', border:'1px solid var(--border-subtle)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:'var(--text)', transition:'all var(--transition)' }}
+              onMouseEnter={e=>e.currentTarget.style.background='var(--surface-3)'}
+              onMouseLeave={e=>e.currentTarget.style.background='var(--surface-2)'}
+            ><Minus size={16}/></button>
+            <div style={{ textAlign:'center' }}>
+              <div style={{ fontSize:'32px', fontWeight:700, fontFamily:'Space Grotesk', color:'var(--primary)', letterSpacing:'-0.03em' }}>{amount}</div>
+              <div style={{ fontSize:'12px', color:'var(--text-secondary)' }}>{item.unit}</div>
+            </div>
+            <button onClick={()=>setAmount(a=>Math.min(item.quantity, +(a+0.5).toFixed(1)))} style={{ width:'40px', height:'40px', borderRadius:'50%', background:'var(--surface-2)', border:'1px solid var(--border-subtle)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:'var(--text)', transition:'all var(--transition)' }}
+              onMouseEnter={e=>e.currentTarget.style.background='var(--surface-3)'}
+              onMouseLeave={e=>e.currentTarget.style.background='var(--surface-2)'}
+            ><Plus size={16}/></button>
+          </div>
+          {amount >= item.quantity && (
+            <p style={{ fontSize:'12px', color:'var(--warning)', marginTop:'10px' }}>⚠️ Esto eliminará el alimento del inventario</p>
+          )}
+        </div>
+        <div style={{ display:'flex', gap:'10px', justifyContent:'flex-end' }}>
+          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
+          <Button loading={loading} onClick={consume}>Registrar consumo</Button>
+        </div>
+      </div>
+    </Modal>
   )
 }
 
@@ -118,183 +153,212 @@ export function InventoryPage() {
   const [items, setItems] = useState<InventoryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [editId, setEditId] = useState<string | null>(null)
+  const [filter, setFilter] = useState<'all'|'expiring'|'ok'>('all')
+  const [editId, setEditId] = useState<string|null>(null)
+  const [consumeItem, setConsumeItem] = useState<InventoryItem|null>(null)
   const [addModal, setAddModal] = useState(false)
   const [addLoading, setAddLoading] = useState(false)
-  const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [deleteId, setDeleteId] = useState<string|null>(null)
 
-  const load = () => inventoryApi.list().then(setItems).catch(console.error).finally(() => setLoading(false))
+  const load = () =>
+    inventoryApi.list().then(setItems).catch(console.error).finally(()=>setLoading(false))
 
-  useEffect(() => { load() }, [])
+  useEffect(()=>{ load() },[])
 
-  const filtered = useMemo(() =>
-    items.filter(i => i.food_name.toLowerCase().includes(search.toLowerCase())),
-    [items, search]
-  )
+  const filtered = useMemo(()=>{
+    let list = items.filter(i=>i.food_name.toLowerCase().includes(search.toLowerCase()))
+    if (filter==='expiring') list = list.filter(i=>i.expiry_status==='warning'||i.expiry_status==='critical'||i.expiry_status==='expired')
+    if (filter==='ok') list = list.filter(i=>!i.expiry_status||i.expiry_status==='ok')
+    return list
+  },[items,search,filter])
 
-  const handleAdd = async (data: ItemFormData) => {
-    if (!data.food_name || !data.quantity) { toast('Completa todos los campos', 'error'); return }
+  const expiringCount = items.filter(i=>i.expiry_status==='warning'||i.expiry_status==='critical'||i.expiry_status==='expired').length
+
+  const handleAdd = async (data:{ food_name:string; quantity:string; unit:string; storage_location:string; expiry_days:string }) => {
+    if (!data.food_name) { toast('Escribe el nombre','error'); return }
     setAddLoading(true)
     try {
-      const item = await inventoryApi.create({
+      const payload: InventoryItemCreate = {
+        food_name: data.food_name,
+        quantity: parseFloat(data.quantity)||1,
+        unit: data.unit,
+        storage_location: data.storage_location,
+      }
+      if (data.expiry_days) payload.expiry_days = parseInt(data.expiry_days)
+      const item = await inventoryApi.create(payload)
+      setItems(prev=>[item,...prev])
+      setAddModal(false)
+      toast('✅ Alimento agregado al inventario')
+    } catch { toast('Error al agregar','error') } finally { setAddLoading(false) }
+  }
+
+  const handleEdit = async (id:string, data:{ food_name:string; quantity:string; unit:string; storage_location:string; expiry_days:string }) => {
+    try {
+      const updated = await inventoryApi.update(id, {
         food_name: data.food_name,
         quantity: parseFloat(data.quantity),
         unit: data.unit,
-      } as InventoryItemCreate)
-      setItems(prev => [item, ...prev])
-      setAddModal(false)
-      toast('Alimento agregado al inventario')
-    } catch { toast('Error al agregar', 'error') }
-    finally { setAddLoading(false) }
+        storage_location: data.storage_location,
+        ...(data.expiry_days ? { expiry_days: parseInt(data.expiry_days) } : {}),
+      })
+      setItems(prev=>prev.map(i=>i.id===id?updated:i))
+      setEditId(null)
+      toast('✅ Actualizado')
+    } catch { toast('Error al actualizar','error') }
   }
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id:string) => {
     try {
       await inventoryApi.delete(id)
-      setItems(prev => prev.filter(i => i.id !== id))
-      toast('Alimento eliminado')
-    } catch { toast('Error al eliminar', 'error') }
+      setItems(prev=>prev.filter(i=>i.id!==id))
+      toast('Eliminado del inventario')
+    } catch { toast('Error al eliminar','error') }
     setDeleteId(null)
+  }
+
+  const handleConsumed = (id:string, updated:InventoryItem|null) => {
+    if (!updated) setItems(prev=>prev.filter(i=>i.id!==id))
+    else setItems(prev=>prev.map(i=>i.id===id?updated:i))
   }
 
   return (
     <>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', animation: 'fadeIn 0.4s ease' }}>
+      <div style={{ display:'flex', flexDirection:'column', gap:'16px', animation:'fadeIn 0.4s ease' }}>
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'10px' }}>
           <div>
-            <h2 style={{ fontSize: '20px', fontWeight: 700, letterSpacing: '-0.03em', marginBottom: '2px' }}>
-              Inventario
-            </h2>
-            <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-              {items.length} {items.length === 1 ? 'alimento' : 'alimentos'} en tu despensa
-            </p>
+            <h2 style={{ fontSize:'20px', fontWeight:700, letterSpacing:'-0.03em', marginBottom:'2px' }}>Inventario</h2>
+            <p style={{ fontSize:'13px', color:'var(--text-secondary)' }}>{items.length} alimentos · {expiringCount>0?<span style={{ color:'var(--warning)' }}>{expiringCount} por caducar</span>:'Todo fresco ✓'}</p>
           </div>
-          <Button onClick={() => setAddModal(true)} icon={<Package size={15} />} size="sm">
-            Agregar
-          </Button>
+          <Button onClick={()=>setAddModal(true)} icon={<Package size={14}/>} size="sm">Agregar</Button>
         </div>
 
-        {/* Search */}
-        <Input
-          placeholder="Buscar alimento..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          icon={<Search size={16} />}
-          iconRight={search ? <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}><X size={14} /></button> : undefined}
-        />
+        {/* Search + filter */}
+        <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
+          <div style={{ flex:1, minWidth:'200px' }}>
+            <Input placeholder="Buscar alimento..." value={search} onChange={e=>setSearch(e.target.value)} icon={<Search size={15}/>}
+              iconRight={search?<button onClick={()=>setSearch('')} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', display:'flex' }}><X size={13}/></button>:undefined}
+            />
+          </div>
+          <div style={{ display:'flex', gap:'4px' }}>
+            {([['all','Todos'],['expiring','⚠️ Por caducar'],['ok','✓ Frescos']] as [string,string][]).map(([val,lbl])=>(
+              <button key={val} onClick={()=>setFilter(val as 'all'|'expiring'|'ok')} style={{
+                padding:'0 12px', height:'42px', borderRadius:'var(--radius-sm)', fontSize:'12px', fontWeight:500,
+                background:filter===val?'var(--surface-3)':'var(--surface)',
+                color:filter===val?'var(--text)':'var(--text-secondary)',
+                border:`1px solid ${filter===val?'var(--border)':'var(--border-subtle)'}`,
+                cursor:'pointer', transition:'all var(--transition)', whiteSpace:'nowrap',
+              }}>{lbl}</button>
+            ))}
+          </div>
+        </div>
 
         {/* Items */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {loading ? (
-            Array.from({ length: 5 }).map((_, i) => <ListItemSkeleton key={i} />)
-          ) : filtered.length === 0 ? (
-            <EmptyState
-              icon={<Package size={28} />}
-              title={search ? 'Sin resultados' : 'Inventario vacío'}
-              description={search ? `No hay alimentos que coincidan con "${search}".` : 'Agrega alimentos a tu despensa usando el botón o el dock flotante.'}
-              action={!search ? { label: 'Agregar primer alimento', onClick: () => setAddModal(true) } : undefined}
-            />
-          ) : (
-            filtered.map(item => (
-              <div key={item.id}>
-                {editId === item.id ? (
-                  <InlineEdit item={item} onDone={() => { setEditId(null); load() }} />
-                ) : (
-                  <Card style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    {/* Icon */}
-                    <div style={{
-                      width: '40px', height: '40px',
-                      background: 'var(--primary-dim)',
-                      borderRadius: 'var(--radius-sm)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: '18px', flexShrink: 0,
-                    }}>
-                      🌿
-                    </div>
+        <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+          {loading ? Array.from({length:5}).map((_,i)=><ListItemSkeleton key={i}/>) :
+          filtered.length===0 ? (
+            <EmptyState icon={<Package size={26}/>} title={search?'Sin resultados':'Inventario vacío'} description={search?`No hay alimentos que coincidan con "${search}".`:'Agrega alimentos usando el botón o el dock flotante.'} action={!search?{label:'Agregar alimento',onClick:()=>setAddModal(true)}:undefined}/>
+          ) : filtered.map(item=>(
+            <div key={item.id}>
+              {editId===item.id ? (
+                <Card style={{ border:'1px solid var(--border)' }}>
+                  <ItemForm
+                    initial={{ food_name:item.food_name, quantity:String(item.quantity), unit:item.unit, storage_location:item.storage_location??'pantry', expiry_days:'' }}
+                    onSave={data=>handleEdit(item.id,data)}
+                    onCancel={()=>setEditId(null)}
+                    loading={false}
+                  />
+                </Card>
+              ) : (
+                <Card style={{
+                  display:'flex', alignItems:'center', gap:'12px',
+                  borderLeft:`3px solid ${item.expiry_status==='expired'?'var(--danger)':item.expiry_status==='critical'?'var(--danger)':item.expiry_status==='warning'?'var(--warning)':'var(--border-subtle)'}`,
+                  transition:'all var(--transition)',
+                }}
+                  onMouseEnter={(e:React.MouseEvent<HTMLDivElement>)=>e.currentTarget.style.transform='translateY(-1px)'}
+                  onMouseLeave={(e:React.MouseEvent<HTMLDivElement>)=>e.currentTarget.style.transform=''}
+                >
+                  {/* Icon */}
+                  <div style={{ width:'40px', height:'40px', borderRadius:'var(--radius-sm)', background:`${locationColor(item.storage_location)}15`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'18px', flexShrink:0 }}>
+                    {item.storage_location==='refrigerator'?'🧊':item.storage_location==='freezer'?'❄️':item.storage_location==='cabinet'?'🗄️':'🌿'}
+                  </div>
 
-                    {/* Info */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text)', marginBottom: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {item.food_name}
-                      </div>
-                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                        Actualizado {formatDistanceToNow(new Date(item.updated_at), { addSuffix: true, locale: es })}
-                      </div>
+                  {/* Info */}
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:'14px', fontWeight:500, color:'var(--text)', marginBottom:'3px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                      {item.food_name}
                     </div>
+                    <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
+                      <span style={{ fontSize:'11px', color:'var(--text-muted)' }}>
+                        {locationLabel(item.storage_location)}
+                      </span>
+                      {item.added_at && (
+                        <span style={{ fontSize:'11px', color:'var(--text-muted)' }}>
+                          · {formatDistanceToNow(new Date(item.added_at),{addSuffix:true,locale:es})}
+                        </span>
+                      )}
+                      {item.expires_at && (
+                        <span style={{ fontSize:'11px', color:'var(--text-muted)' }}>
+                          · caduca {format(new Date(item.expires_at),"d MMM",{locale:es})}
+                        </span>
+                      )}
+                    </div>
+                  </div>
 
-                    {/* Quantity */}
-                    <div style={{
-                      padding: '4px 12px',
-                      background: 'var(--surface-2)',
-                      borderRadius: '100px',
-                      fontSize: '13px',
-                      fontWeight: 500,
-                      color: 'var(--text)',
-                      fontFamily: 'IBM Plex Mono',
-                      flexShrink: 0,
-                    }}>
+                  {/* Expiry + quantity */}
+                  <div style={{ display:'flex', alignItems:'center', gap:'8px', flexShrink:0, flexWrap:'wrap', justifyContent:'flex-end' }}>
+                    <ExpiryBadge item={item}/>
+                    <div style={{ padding:'4px 10px', background:'var(--surface-2)', borderRadius:'100px', fontSize:'12px', fontWeight:600, color:'var(--text)', fontFamily:'IBM Plex Mono', whiteSpace:'nowrap' }}>
                       {item.quantity} {item.unit}
                     </div>
+                  </div>
 
-                    {/* Actions */}
-                    <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
-                      <button
-                        onClick={() => setEditId(item.id)}
-                        style={{
-                          width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          borderRadius: '8px', color: 'var(--text-secondary)', cursor: 'pointer',
-                          background: 'none', border: 'none', transition: 'all var(--transition)',
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface-2)'; e.currentTarget.style.color = 'var(--text)' }}
-                        onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.color = 'var(--text-secondary)' }}
-                      >
-                        <Edit2 size={14} />
-                      </button>
-                      <button
-                        onClick={() => setDeleteId(item.id)}
-                        style={{
-                          width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          borderRadius: '8px', color: 'var(--text-secondary)', cursor: 'pointer',
-                          background: 'none', border: 'none', transition: 'all var(--transition)',
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--danger-dim)'; e.currentTarget.style.color = 'var(--danger)' }}
-                        onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.color = 'var(--text-secondary)' }}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </Card>
-                )}
-              </div>
-            ))
-          )}
+                  {/* Actions */}
+                  <div style={{ display:'flex', gap:'2px', flexShrink:0 }}>
+                    {/* Consume */}
+                    <button onClick={()=>setConsumeItem(item)} title="Registrar consumo" style={{ width:'30px', height:'30px', display:'flex', alignItems:'center', justifyContent:'center', borderRadius:'7px', color:'var(--text-secondary)', cursor:'pointer', transition:'all var(--transition)' }}
+                      onMouseEnter={e=>{e.currentTarget.style.background='var(--primary-dim)';e.currentTarget.style.color='var(--primary)'}}
+                      onMouseLeave={e=>{e.currentTarget.style.background='';e.currentTarget.style.color='var(--text-secondary)'}}
+                    ><Minus size={13}/></button>
+                    {/* Edit */}
+                    <button onClick={()=>setEditId(item.id)} title="Editar" style={{ width:'30px', height:'30px', display:'flex', alignItems:'center', justifyContent:'center', borderRadius:'7px', color:'var(--text-secondary)', cursor:'pointer', transition:'all var(--transition)' }}
+                      onMouseEnter={e=>{e.currentTarget.style.background='var(--surface-2)';e.currentTarget.style.color='var(--text)'}}
+                      onMouseLeave={e=>{e.currentTarget.style.background='';e.currentTarget.style.color='var(--text-secondary)'}}
+                    ><Edit2 size={13}/></button>
+                    {/* Delete */}
+                    <button onClick={()=>setDeleteId(item.id)} title="Eliminar" style={{ width:'30px', height:'30px', display:'flex', alignItems:'center', justifyContent:'center', borderRadius:'7px', color:'var(--text-secondary)', cursor:'pointer', transition:'all var(--transition)' }}
+                      onMouseEnter={e=>{e.currentTarget.style.background='var(--danger-dim)';e.currentTarget.style.color='var(--danger)'}}
+                      onMouseLeave={e=>{e.currentTarget.style.background='';e.currentTarget.style.color='var(--text-secondary)'}}
+                    ><Trash2 size={13}/></button>
+                  </div>
+                </Card>
+              )}
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Add modal */}
-      <Modal isOpen={addModal} onClose={() => setAddModal(false)} title="Agregar alimento">
-        <ItemForm onSave={handleAdd} onCancel={() => setAddModal(false)} loading={addLoading} />
+      {/* Modals */}
+      <Modal isOpen={addModal} onClose={()=>setAddModal(false)} title="Agregar alimento">
+        <ItemForm onSave={handleAdd} onCancel={()=>setAddModal(false)} loading={addLoading}/>
       </Modal>
 
-      {/* Delete confirm modal */}
-      <Modal isOpen={!!deleteId} onClose={() => setDeleteId(null)} title="Eliminar alimento" size="sm">
-        <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '20px' }}>
-          ¿Estás seguro de que quieres eliminar este alimento del inventario?
-        </p>
-        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-          <Button variant="ghost" onClick={() => setDeleteId(null)}>Cancelar</Button>
-          <Button variant="danger" icon={<Trash2 size={14} />} onClick={() => deleteId && handleDelete(deleteId)}>
-            Eliminar
-          </Button>
+      {consumeItem && (
+        <ConsumeModal item={consumeItem} onClose={()=>setConsumeItem(null)} onDone={updated=>{ handleConsumed(consumeItem.id,updated); setConsumeItem(null) }}/>
+      )}
+
+      <Modal isOpen={!!deleteId} onClose={()=>setDeleteId(null)} title="Eliminar alimento" size="sm">
+        <p style={{ fontSize:'14px', color:'var(--text-secondary)', marginBottom:'20px' }}>¿Eliminar este alimento del inventario? Esta acción no se puede deshacer.</p>
+        <div style={{ display:'flex', gap:'10px', justifyContent:'flex-end' }}>
+          <Button variant="ghost" onClick={()=>setDeleteId(null)}>Cancelar</Button>
+          <Button variant="danger" icon={<Trash2 size={13}/>} onClick={()=>deleteId&&handleDelete(deleteId)}>Eliminar</Button>
         </div>
       </Modal>
 
-      {/* Floating dock */}
       <FreshlyDock
-        onManual={() => setAddModal(true)}
-        onVoice={() => navigate('/purchases?action=voice')}
-        onReceipt={() => navigate('/purchases?action=receipt')}
+        onManual={()=>setAddModal(true)}
+        onVoice={()=>navigate('/purchases?action=voice')}
+        onReceipt={()=>navigate('/purchases?action=receipt')}
       />
     </>
   )
