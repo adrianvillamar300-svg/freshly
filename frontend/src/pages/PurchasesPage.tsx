@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useLocation } from 'react-router-dom'
 import { ShoppingBag, Trash2, ChevronDown, ChevronUp, Plus, Mic, MicOff, Camera, X, Check } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -124,20 +125,37 @@ function VoiceModal({ isOpen, onClose, onSaved }: { isOpen: boolean; onClose: ()
   const recognitionRef = useRef<SpeechRecognition | null>(null)
 
   const startRec = () => {
-    const SpeechRecognition = (window as unknown as { SpeechRecognition?: SpeechRecognitionConstructor; webkitSpeechRecognition?: SpeechRecognitionConstructor }).SpeechRecognition || (window as unknown as { SpeechRecognition?: SpeechRecognitionConstructor; webkitSpeechRecognition?: SpeechRecognitionConstructor }).webkitSpeechRecognition
-    if (!SpeechRecognition) { toast('Tu navegador no soporta reconocimiento de voz', 'error'); return }
-    const r = new SpeechRecognition()
-    r.lang = 'es-ES'
-    r.continuous = true
-    r.interimResults = true
-    r.onresult = (e: SpeechRecognitionEvent) => {
-      const t = Array.from(e.results).map(r => r[0].transcript).join(' ')
-      setTranscript(t)
+    // Check browser support
+    const SpeechRecognitionAPI = (
+      (window as unknown as Record<string, unknown>).SpeechRecognition ||
+      (window as unknown as Record<string, unknown>).webkitSpeechRecognition
+    ) as SpeechRecognitionConstructor | undefined
+
+    if (!SpeechRecognitionAPI) {
+      toast('Tu navegador no soporta reconocimiento de voz. Usa Chrome.', 'error')
+      return
     }
-    r.onerror = () => { setRecording(false); toast('Error en el micrófono', 'error') }
-    r.start()
-    recognitionRef.current = r
-    setRecording(true)
+
+    // Check microphone permission
+    navigator.mediaDevices?.getUserMedia({ audio: true })
+      .then(() => {
+        const r = new SpeechRecognitionAPI()
+        r.lang = 'es-ES'
+        r.continuous = true
+        r.interimResults = true
+        r.onresult = (e: SpeechRecognitionEvent) => {
+          const t = Array.from(e.results).map(r => r[0].transcript).join(' ')
+          setTranscript(t)
+        }
+        r.onerror = () => { setRecording(false); toast('Error en el micrófono', 'error') }
+        r.onend = () => setRecording(false)
+        r.start()
+        recognitionRef.current = r
+        setRecording(true)
+      })
+      .catch(() => {
+        toast('Permiso de micrófono denegado. Habilítalo en la configuración del navegador.', 'error')
+      })
   }
 
   const stopRec = () => {
@@ -444,6 +462,7 @@ function PurchaseCard({ purchase, onDelete }: { purchase: Purchase; onDelete: ()
 // ── Main page ─────────────────────────────────────────────
 export function PurchasesPage() {
   const { toast } = useToast()
+  const location = useLocation()
   const [purchases, setPurchases] = useState<Purchase[]>([])
   const [loading, setLoading] = useState(true)
   const [manualOpen, setManualOpen] = useState(false)
@@ -454,6 +473,15 @@ export function PurchasesPage() {
     purchasesApi.list().then(setPurchases).catch(console.error).finally(() => setLoading(false))
 
   useEffect(() => { load() }, [])
+
+  // Auto-open modal when navigating from another page with ?action=
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const action = params.get('action')
+    if (action === 'voice') setVoiceOpen(true)
+    if (action === 'receipt') setReceiptOpen(true)
+    if (action === 'manual') setManualOpen(true)
+  }, [location.search])
 
   const handleDelete = async (id: string) => {
     try {

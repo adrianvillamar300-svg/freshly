@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Search, Package, Edit2, Trash2, Check, X } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -113,6 +114,7 @@ function InlineEdit({ item, onDone }: { item: InventoryItem; onDone: () => void 
 
 export function InventoryPage() {
   const { toast } = useToast()
+  const navigate = useNavigate()
   const [items, setItems] = useState<InventoryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -291,8 +293,8 @@ export function InventoryPage() {
       {/* Floating dock */}
       <FreshlyDock
         onManual={() => setAddModal(true)}
-        onVoice={() => {/* handled in purchases */}}
-        onReceipt={() => {/* handled in purchases */}}
+        onVoice={() => navigate('/purchases?action=voice')}
+        onReceipt={() => navigate('/purchases?action=receipt')}
       />
     </>
   )
