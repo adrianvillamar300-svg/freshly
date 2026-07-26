@@ -13,29 +13,11 @@ interface CardProps {
 }
 
 export function Card({ children, style, hover = false, padding = '20px', onClick, glow = false, onMouseEnter, onMouseLeave }: CardProps) {
-  const handleMouseEnter = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (onClick) {
-      e.currentTarget.style.borderColor = 'var(--border)'
-      e.currentTarget.style.transform = 'translateY(-2px)'
-      e.currentTarget.style.boxShadow = 'var(--shadow)'
-    }
-    onMouseEnter?.(e)
-  }
-
-  const handleMouseLeave = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (onClick) {
-      e.currentTarget.style.borderColor = 'var(--border-subtle)'
-      e.currentTarget.style.transform = ''
-      e.currentTarget.style.boxShadow = glow ? 'var(--glow)' : ''
-    }
-    onMouseLeave?.(e)
-  }
-
   return (
     <div
       onClick={onClick}
-      onMouseEnter={(hover || onClick || onMouseEnter) ? handleMouseEnter : undefined}
-      onMouseLeave={(hover || onClick || onMouseLeave) ? handleMouseLeave : undefined}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       style={{
         background: 'var(--surface)',
         border: '1px solid var(--border-subtle)',
@@ -46,6 +28,16 @@ export function Card({ children, style, hover = false, padding = '20px', onClick
         boxShadow: glow ? 'var(--glow)' : undefined,
         ...style,
       }}
+      onMouseEnter={hover && !onClick ? undefined : onClick ? e => {
+        e.currentTarget.style.borderColor = 'var(--border)'
+        e.currentTarget.style.transform = 'translateY(-2px)'
+        e.currentTarget.style.boxShadow = 'var(--shadow)'
+      } : undefined}
+      onMouseLeave={onClick ? e => {
+        e.currentTarget.style.borderColor = 'var(--border-subtle)'
+        e.currentTarget.style.transform = ''
+        e.currentTarget.style.boxShadow = glow ? 'var(--glow)' : ''
+      } : undefined}
     >
       {children}
     </div>

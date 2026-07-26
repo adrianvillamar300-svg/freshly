@@ -2,7 +2,7 @@
 
 App de inventario de alimentos con IA. Registra tus compras manualmente, por voz o subiendo la foto de la factura, y Freshly te muestra tu inventario, historial y te recomienda recetas con lo que tienes.
 
-## Estructura del proyecto freshly
+## Estructura del proyecto
 
 ```
 freshly/
