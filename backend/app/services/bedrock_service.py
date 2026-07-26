@@ -83,7 +83,7 @@ def call_claude_vision(
                 "Content-Type": "application/json",
             },
             json={
-                "model": "google/gemini-2.0-flash-exp:free",
+                "model": "openrouter/free",
                 "messages": messages,
                 "max_tokens": max_tokens,
             },
