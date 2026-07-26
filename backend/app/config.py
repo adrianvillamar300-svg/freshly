@@ -15,15 +15,12 @@ class Settings(BaseSettings):
     CLOUDINARY_API_KEY: str = ""
     CLOUDINARY_API_SECRET: str = ""
 
-    # AWS Bedrock (IA: voz, facturas, recetas)
-    AWS_ACCESS_KEY_ID: str = ""
-    AWS_SECRET_ACCESS_KEY: str = ""
-    AWS_REGION: str = "us-east-1"
-    BEDROCK_MODEL_ID: str = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+    # IA — API de Anthropic (reemplaza AWS Bedrock)
+    ANTHROPIC_API_KEY: str = ""
+    CLAUDE_MODEL: str = "claude-haiku-4-5-20251001"
 
-    # CORS - dominio(s) del frontend desplegado
-    # Puedes poner múltiples separados por coma:
-    # FRONTEND_URL=https://freshly.up.railway.app,https://mifrontend.up.railway.app
+    # CORS — dominio(s) del frontend desplegado
+    # Puedes poner múltiples separados por coma
     FRONTEND_URL: str = "http://localhost:5173"
 
     @property
