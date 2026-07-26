@@ -8,19 +8,20 @@ class Settings(BaseSettings):
     # JWT
     JWT_SECRET: str = "change-this-secret-in-production"
     JWT_ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 días
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
 
-    # Cloudinary (fotos de perfil / facturas)
+    # Cloudinary
     CLOUDINARY_CLOUD_NAME: str = ""
     CLOUDINARY_API_KEY: str = ""
     CLOUDINARY_API_SECRET: str = ""
 
-    # IA — Groq (gratis)
+    # Groq — texto (voz y recetas)
     GROQ_API_KEY: str = ""
-    # Modelo de texto (voz y recetas)
     GROQ_MODEL: str = "llama-3.1-8b-instant"
-    # Modelo con visión (fotos de facturas)
-    GROQ_VISION_MODEL: str = "meta-llama/llama-4-scout-17b-16e-instruct"
+
+    # Google Gemini — visión (fotos de facturas)
+    GEMINI_API_KEY: str = ""
+    GEMINI_VISION_MODEL: str = "gemini-1.5-flash"
 
     # CORS
     FRONTEND_URL: str = "http://localhost:5173"
