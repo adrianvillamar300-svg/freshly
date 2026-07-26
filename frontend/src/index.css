@@ -130,3 +130,18 @@ img { max-width:100%; display:block; }
 /* Utilities */
 .truncate { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); border:0; }
+
+/* ── Mobile responsive fixes ── */
+@media (max-width: 480px) {
+  main {
+    padding: 16px 12px 100px !important;
+  }
+}
+
+/* Leaf fall animation */
+@keyframes leafFall {
+  0%   { transform: translateY(-40px) rotate(0deg);   opacity: 0; }
+  10%  { opacity: 0.18; }
+  90%  { opacity: 0.12; }
+  100% { transform: translateY(110vh) rotate(360deg); opacity: 0; }
+}
