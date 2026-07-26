@@ -14,7 +14,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../components/ui/Toast'
 import { dashboardApi, inventoryApi, purchasesApi } from '../lib/api'
 import type { SpendingByDate, DashboardSummary, PurchaseItemCreate, InventoryItem } from '../types'
-import type { SpeechRecognitionConstructor } from '../types/speech.d'
+
 
 const UNITS = ['unidad','kg','g','L','ml','docena','caja','bolsa','lata','paquete']
 const LOCATIONS = [
@@ -152,7 +152,7 @@ function VoiceModal({ isOpen, onClose, onSaved }: { isOpen:boolean; onClose:()=>
   const [saving, setSaving] = useState(false)
   const recRef = useRef<SpeechRecognition|null>(null)
   const startRec = () => {
-    const SR = ((window as unknown as Record<string,unknown>).SpeechRecognition || (window as unknown as Record<string,unknown>).webkitSpeechRecognition) as SpeechRecognitionConstructor|undefined
+    const SR = ((window as unknown as Record<string,unknown>).SpeechRecognition || (window as unknown as Record<string,unknown>).webkitSpeechRecognition) as (new() => SpeechRecognition)|undefined
     if (!SR) { toast('Usa Chrome para voz','error'); return }
     navigator.mediaDevices?.getUserMedia({audio:true}).then(()=>{
       const r = new SR(); r.lang='es-ES'; r.continuous=true; r.interimResults=true
