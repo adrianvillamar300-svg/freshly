@@ -8,12 +8,16 @@ interface CardProps {
   padding?: string
   onClick?: () => void
   glow?: boolean
+  onMouseEnter?: (e: React.MouseEvent<HTMLDivElement>) => void
+  onMouseLeave?: (e: React.MouseEvent<HTMLDivElement>) => void
 }
 
-export function Card({ children, style, hover = false, padding = '20px', onClick, glow = false }: CardProps) {
+export function Card({ children, style, hover = false, padding = '20px', onClick, glow = false, onMouseEnter, onMouseLeave }: CardProps) {
   return (
     <div
       onClick={onClick}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       style={{
         background: 'var(--surface)',
         border: '1px solid var(--border-subtle)',
