@@ -13,14 +13,6 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children?: ReactNode
 }
 
-const styles: Record<Variant, string> = {
-  primary: 'btn-primary',
-  secondary: 'btn-secondary',
-  ghost: 'btn-ghost',
-  danger: 'btn-danger',
-  outline: 'btn-outline',
-}
-
 const sizes: Record<Size, { padding: string; fontSize: string; height: string }> = {
   sm: { padding: '0 12px', fontSize: '13px', height: '32px' },
   md: { padding: '0 16px', fontSize: '14px', height: '40px' },

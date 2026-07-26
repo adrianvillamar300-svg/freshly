@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ChefHat, Sparkles, BookOpen, Trash2, ChevronDown, ChevronUp, Clock, ShoppingCart } from 'lucide-react'
+import { Sparkles, BookOpen, Trash2, ChevronDown, ChevronUp, Clock, ShoppingCart } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Card } from '../components/ui/Card'
