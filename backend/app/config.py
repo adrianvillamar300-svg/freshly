@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     # Modelo de texto (voz y recetas)
     GROQ_MODEL: str = "llama-3.1-8b-instant"
     # Modelo con visión (fotos de facturas)
-    GROQ_VISION_MODEL: str = "llama-3.2-11b-vision-preview"
+    GROQ_VISION_MODEL: str = "meta-llama/llama-4-scout-17b-16e-instruct"
 
     # CORS
     FRONTEND_URL: str = "http://localhost:5173"
