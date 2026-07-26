@@ -2,28 +2,19 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    # Base de datos
     DATABASE_URL: str = "postgresql://user:password@localhost:5432/freshly"
-
-    # JWT
     JWT_SECRET: str = "change-this-secret-in-production"
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
 
-    # Cloudinary
     CLOUDINARY_CLOUD_NAME: str = ""
     CLOUDINARY_API_KEY: str = ""
     CLOUDINARY_API_SECRET: str = ""
 
-    # Groq — texto (voz y recetas)
+    # Groq — texto y visión (todo gratis)
     GROQ_API_KEY: str = ""
     GROQ_MODEL: str = "llama-3.1-8b-instant"
 
-    # Google Gemini — visión (fotos de facturas)
-    GEMINI_API_KEY: str = ""
-    GEMINI_VISION_MODEL: str = "gemini-1.5-flash"
-
-    # CORS
     FRONTEND_URL: str = "http://localhost:5173"
 
     @property
