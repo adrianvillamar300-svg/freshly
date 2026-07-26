@@ -398,6 +398,15 @@ export function LoginPage() {
         }
         .feature-pill:hover { background: var(--primary-dim) !important; color: var(--primary) !important; border-color: var(--border) !important; transform: scale(1.04); }
         .feature-pill { transition: all 0.25s cubic-bezier(0.4,0,0.2,1) !important; }
+        @media (max-width: 768px) {
+          :root { --hero-cols: 1fr !important; }
+          .login-form-col { order: -1; }
+          .login-copy-col h1 { font-size: clamp(28px, 8vw, 48px) !important; }
+          .login-copy-col p { font-size: 14px !important; }
+          .info-cards-section { padding: 48px 16px !important; }
+          .testimonials-section { padding: 0 16px 48px !important; }
+          .stats-section { padding: 48px 16px !important; }
+        }
       `}</style>
 
       {/* ── HERO ─────────────────────────────────────────── */}
@@ -422,17 +431,17 @@ export function LoginPage() {
         {/* Content */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: '60px',
+          gridTemplateColumns: 'var(--hero-cols, 1fr 1fr)',
+          gap: 'clamp(24px, 5vw, 60px)',
           width: '100%',
           maxWidth: '1200px',
           margin: '0 auto',
-          padding: '80px 40px',
+          padding: 'clamp(48px, 8vw, 80px) clamp(16px, 5vw, 40px)',
           alignItems: 'center',
           position: 'relative', zIndex: 2,
         }}>
           {/* Left — copy */}
-          <div style={{ animation: 'fadeIn 0.6s ease' }}>
+          <div className="login-copy-col" style={{ animation: 'fadeIn 0.6s ease' }}>
             <div style={{ marginBottom: '32px' }}>
               <Logo size={42} showText />
             </div>
@@ -520,7 +529,7 @@ export function LoginPage() {
       </section>
 
       {/* ── STATS ──────────────────────────────────────────── */}
-      <section ref={contentRef} style={{ padding: '80px 40px', maxWidth: '900px', margin: '0 auto' }}>
+      <section ref={contentRef} style={{ padding: 'clamp(48px,8vw,80px) clamp(16px,5vw,40px)', maxWidth: '900px', margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: '48px' }}>
           <h2 style={{ fontSize: '32px', fontWeight: 700, letterSpacing: '-0.03em', marginBottom: '10px' }}>
             El problema es real
@@ -538,7 +547,7 @@ export function LoginPage() {
       </section>
 
       {/* ── INFO CARDS ─────────────────────────────────────── */}
-      <section style={{ padding: '0 40px 80px', maxWidth: '1200px', margin: '0 auto' }}>
+      <section style={{ padding: '0 clamp(16px,5vw,40px) clamp(48px,8vw,80px)', maxWidth: '1200px', margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: '48px' }}>
           <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>¿Por qué importa?</span>
           <h2 style={{ fontSize: '32px', fontWeight: 700, letterSpacing: '-0.03em', marginTop: '8px', marginBottom: '10px' }}>
@@ -554,7 +563,7 @@ export function LoginPage() {
       </section>
 
       {/* ── TESTIMONIALS ───────────────────────────────────── */}
-      <section style={{ padding: '0 40px 80px', maxWidth: '1100px', margin: '0 auto' }}>
+      <section style={{ padding: '0 clamp(16px,5vw,40px) clamp(48px,8vw,80px)', maxWidth: '1100px', margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: '48px' }}>
           <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Testimonios</span>
           <h2 style={{ fontSize: '32px', fontWeight: 700, letterSpacing: '-0.03em', marginTop: '8px', marginBottom: '10px' }}>
