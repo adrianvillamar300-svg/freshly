@@ -15,20 +15,19 @@ class Settings(BaseSettings):
     CLOUDINARY_API_KEY: str = ""
     CLOUDINARY_API_SECRET: str = ""
 
-    # IA — API de Anthropic (reemplaza AWS Bedrock)
-    ANTHROPIC_API_KEY: str = ""
-    CLAUDE_MODEL: str = "claude-haiku-4-5-20251001"
+    # IA — Groq (gratis)
+    GROQ_API_KEY: str = ""
+    # Modelo de texto (voz y recetas)
+    GROQ_MODEL: str = "llama-3.1-8b-instant"
+    # Modelo con visión (fotos de facturas)
+    GROQ_VISION_MODEL: str = "llama-3.2-11b-vision-preview"
 
-    # CORS — dominio(s) del frontend desplegado
-    # Puedes poner múltiples separados por coma
+    # CORS
     FRONTEND_URL: str = "http://localhost:5173"
 
     @property
     def allowed_origins(self) -> list[str]:
-        base = [
-            "http://localhost:5173",
-            "http://localhost:3000",
-        ]
+        base = ["http://localhost:5173", "http://localhost:3000"]
         for url in self.FRONTEND_URL.split(","):
             url = url.strip()
             if url and url not in base:

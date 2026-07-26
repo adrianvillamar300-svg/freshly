@@ -1,73 +1,88 @@
 """
-Servicio de IA usando la API oficial de Anthropic (claude-haiku-4-5).
+Servicio de IA usando Groq (gratuito).
+Modelos: llama-3.1-8b-instant (texto) y llama-3.2-11b-vision-preview (imágenes).
 """
 import base64
 import logging
-import anthropic
+from groq import Groq
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
 
-def _get_client() -> anthropic.Anthropic:
-    if not settings.ANTHROPIC_API_KEY:
-        raise ValueError("ANTHROPIC_API_KEY no está configurada en las variables de entorno")
-    return anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+def _get_client() -> Groq:
+    if not settings.GROQ_API_KEY:
+        raise ValueError("GROQ_API_KEY no está configurada en las variables de entorno")
+    return Groq(api_key=settings.GROQ_API_KEY)
 
 
 def call_claude(prompt: str, system: str = "", max_tokens: int = 1024) -> str:
-    """Llama a Claude con un prompt de texto y devuelve la respuesta."""
+    """Llama al modelo de texto de Groq y devuelve la respuesta."""
     try:
         client = _get_client()
-        kwargs = {
-            "model": settings.CLAUDE_MODEL,
-            "max_tokens": max_tokens,
-            "messages": [{"role": "user", "content": prompt}],
-        }
+        messages = []
         if system:
-            kwargs["system"] = system
-        logger.info(f"Llamando a Claude modelo={settings.CLAUDE_MODEL}")
-        response = client.messages.create(**kwargs)
-        logger.info("Respuesta de Claude recibida correctamente")
-        return response.content[0].text
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+
+        logger.info(f"Llamando a Groq modelo={settings.GROQ_MODEL}")
+        response = client.chat.completions.create(
+            model=settings.GROQ_MODEL,
+            messages=messages,
+            max_tokens=max_tokens,
+            temperature=0.1,
+        )
+        result = response.choices[0].message.content
+        logger.info("Respuesta de Groq recibida correctamente")
+        return result
     except Exception as e:
-        logger.error(f"ERROR al llamar a Claude: {type(e).__name__}: {e}")
+        logger.error(f"ERROR al llamar a Groq: {type(e).__name__}: {e}")
         raise
 
 
 def call_claude_vision(
     file_bytes: bytes, media_type: str, prompt: str, system: str = "", max_tokens: int = 1500
 ) -> str:
-    """Llama a Claude con una imagen o PDF adjunto (para procesar facturas)."""
+    """Llama al modelo de visión de Groq con una imagen y devuelve la respuesta."""
     try:
         client = _get_client()
         b64_data = base64.b64encode(file_bytes).decode("utf-8")
 
+        # Groq visión solo soporta imágenes (no PDF), convertimos el media_type
         if media_type == "application/pdf":
-            file_block = {
-                "type": "document",
-                "source": {"type": "base64", "media_type": media_type, "data": b64_data},
-            }
-        else:
-            file_block = {
-                "type": "image",
-                "source": {"type": "base64", "media_type": media_type, "data": b64_data},
-            }
+            # Para PDFs no soportados, devolvemos vacío y el parser manejará el error
+            logger.warning("PDF no soportado en Groq Vision, retornando vacío")
+            return '{"items": []}'
 
-        kwargs = {
-            "model": settings.CLAUDE_MODEL,
-            "max_tokens": max_tokens,
-            "messages": [
-                {"role": "user", "content": [file_block, {"type": "text", "text": prompt}]}
-            ],
-        }
+        messages = []
         if system:
-            kwargs["system"] = system
+            messages.append({"role": "system", "content": system})
+        messages.append({
+            "role": "user",
+            "content": [
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:{media_type};base64,{b64_data}"
+                    }
+                },
+                {
+                    "type": "text",
+                    "text": prompt
+                }
+            ]
+        })
 
-        logger.info(f"Llamando a Claude Vision modelo={settings.CLAUDE_MODEL}")
-        response = client.messages.create(**kwargs)
-        logger.info("Respuesta de Claude Vision recibida correctamente")
-        return response.content[0].text
+        logger.info(f"Llamando a Groq Vision modelo={settings.GROQ_VISION_MODEL}")
+        response = client.chat.completions.create(
+            model=settings.GROQ_VISION_MODEL,
+            messages=messages,
+            max_tokens=max_tokens,
+            temperature=0.1,
+        )
+        result = response.choices[0].message.content
+        logger.info("Respuesta de Groq Vision recibida correctamente")
+        return result
     except Exception as e:
-        logger.error(f"ERROR al llamar a Claude Vision: {type(e).__name__}: {e}")
+        logger.error(f"ERROR al llamar a Groq Vision: {type(e).__name__}: {e}")
         raise
