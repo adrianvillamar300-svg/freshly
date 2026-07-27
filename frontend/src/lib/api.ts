@@ -67,6 +67,8 @@ export const inventoryApi = {
   expiring: (days?: number) => api.get<InventoryItem[]>('/inventory/expiring', { params: { days } }).then(r => r.data),
   nutrition: (foodName: string) =>
     api.get<NutritionInfo>(`/inventory/nutrition/${encodeURIComponent(foodName)}`).then(r => r.data),
+  dailyQuiz: () =>
+    api.get<{ questions: Array<{ question: string; options: string[]; correct: number; explanation: string }> }>('/inventory/quiz/daily').then(r => r.data),
   analyzePhoto: (file: File) => {
     const form = new FormData(); form.append('file', file)
     return api.post<{ items: Array<{ food_name: string; quantity: number; unit: string }> }>(

@@ -248,3 +248,24 @@ Responde SOLO con un JSON válido, sin texto extra, sin backticks. Formato exact
         return schemas.NutritionOut(**data)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al obtener información nutricional: {str(e)}")
+
+
+@router.get("/quiz/daily")
+def get_daily_quiz(
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    """Genera 5 preguntas de quiz diario sobre nutrición usando IA."""
+    from app.services.bedrock_service import call_claude
+    from app.services.ai_utils import extract_json
+
+    prompt = """Genera 5 preguntas de opción múltiple sobre nutrición, frutas, verduras, alimentación saludable y reducción de desperdicio alimentario.
+Las preguntas deben ser interesantes, educativas y variadas.
+Responde SOLO con un JSON válido sin texto extra ni backticks:
+{"questions":[{"question":"texto de la pregunta","options":["opción A","opción B","opción C","opción D"],"correct":0,"explanation":"explicación breve y útil en 1-2 oraciones"}]}"""
+
+    try:
+        raw = call_claude(prompt, max_tokens=800)
+        data = extract_json(raw)
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al generar el quiz: {str(e)}")

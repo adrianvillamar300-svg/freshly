@@ -1211,25 +1211,8 @@ function DailyQuizModal({ onClose, onFinished }: { onClose: () => void; onFinish
 
   const generateQuestions = async () => {
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 1000,
-          messages: [{
-            role: 'user',
-            content: `Genera 5 preguntas de opción múltiple sobre nutrición, frutas, verduras, alimentación saludable y reducción de desperdicio alimentario. 
-Las preguntas deben ser interesantes, educativas y variadas. Responde SOLO con un JSON válido, sin texto extra:
-{"questions":[{"question":"texto de la pregunta","options":["opción A","opción B","opción C","opción D"],"correct":0,"explanation":"explicación breve y útil en 1-2 oraciones"}]}`
-          }]
-        })
-      })
-      const data = await response.json()
-      const text = data.content?.[0]?.text ?? ''
-      const clean = text.replace(/```json|```/g, '').trim()
-      const parsed = JSON.parse(clean)
-      setQuestions(parsed.questions ?? [])
+      const data = await inventoryApi.dailyQuiz()
+      setQuestions(data.questions ?? [])
       setPhase('playing')
     } catch {
       setError('No se pudo cargar el quiz. Intenta de nuevo.')
