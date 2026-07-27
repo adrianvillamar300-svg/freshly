@@ -137,26 +137,53 @@ function VoiceModal({ isOpen, onClose, onSaved }: { isOpen: boolean; onClose: ()
       return
     }
 
-    // Check microphone permission
-    navigator.mediaDevices?.getUserMedia({ audio: true })
-      .then(() => {
-        const r = new SpeechRecognitionAPI()
-        r.lang = 'es-ES'
-        r.continuous = true
-        r.interimResults = true
-        r.onresult = (e: SpeechRecognitionEvent) => {
-          const t = Array.from(e.results).map(r => r[0].transcript).join(' ')
-          setTranscript(t)
-        }
-        r.onerror = () => { setRecording(false); toast('Error en el micrófono', 'error') }
-        r.onend = () => setRecording(false)
-        r.start()
-        recognitionRef.current = r
-        setRecording(true)
-      })
-      .catch(() => {
+    const r = new SpeechRecognitionAPI()
+    r.lang = navigator.language?.startsWith('es') ? navigator.language : 'es-ES'
+    r.continuous = true
+    r.interimResults = true
+    r.maxAlternatives = 1
+
+    r.onresult = (e: SpeechRecognitionEvent) => {
+      const t = Array.from(e.results).map(r => r[0].transcript).join(' ')
+      setTranscript(t)
+    }
+
+    r.onerror = (e: Event) => {
+      const err = (e as unknown as { error: string }).error
+      if (err === 'not-allowed' || err === 'service-not-allowed') {
         toast('Permiso de micrófono denegado. Habilítalo en la configuración del navegador.', 'error')
+      } else if (err === 'network') {
+        toast('Error de red. Verifica tu conexión a internet.', 'error')
+      } else if (err === 'no-speech') {
+        // Silence timeout — no es un error real, simplemente reiniciar
+        return
+      } else if (err === 'audio-capture') {
+        toast('No se detectó micrófono. Verifica que esté conectado y habilitado.', 'error')
+      } else {
+        toast(`Error de reconocimiento: ${err || 'desconocido'}`, 'error')
+      }
+      setRecording(false)
+    }
+
+    r.onend = () => {
+      // Si sigue en modo recording (el usuario no detuvo manualmente), reiniciar
+      // para mantener escucha continua (la API para sola tras silencio)
+      setRecording(prev => {
+        if (prev) {
+          try { r.start() } catch { /* ya iniciado o cerrado */ }
+          return true
+        }
+        return false
       })
+    }
+
+    try {
+      r.start()
+      recognitionRef.current = r
+      setRecording(true)
+    } catch {
+      toast('No se pudo iniciar el micrófono. Intenta recargar la página.', 'error')
+    }
   }
 
   const stopRec = () => {
