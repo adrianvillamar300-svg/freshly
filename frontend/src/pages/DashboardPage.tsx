@@ -278,27 +278,16 @@ function FoodsDetailModal({ isOpen, onClose, inventory, summary }: {
     setNutritionInfo(null)
     setLoadingNutrition(true)
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 1000,
-          messages: [{
-            role: 'user',
-            content: `Dame información nutricional y de salud sobre: ${food.food_name}. 
-            Responde en español con este formato exacto (sin markdown, sin asteriscos):
-            CALORIAS: [número aproximado por 100g/unidad]
-            BENEFICIO CLAVE: [el beneficio más importante, 1 oración corta y clara]
-            VITAMINAS: [principales vitaminas/minerales, máx 3]
-            PARA QUE SIRVE: [2-3 beneficios concretos para la salud, cortos]
-            CONSUMIR: [frecuencia recomendada, 1 oración]
-            CONSEJO: [tip de preparación o consumo, 1 oración]`
-          }]
-        })
-      })
-      const data = await response.json()
-      setNutritionInfo(data.content?.[0]?.text ?? 'No se pudo obtener información.')
+      const data = await inventoryApi.nutrition(food.food_name)
+      // Convert structured NutritionInfo to the text format parseNutrition expects
+      const lines: string[] = []
+      if (data.calories) lines.push(`CALORIAS: ${data.calories.replace(/[^\d]/g, '')}`)
+      if (data.benefits?.length) lines.push(`BENEFICIO CLAVE: ${data.benefits[0]}`)
+      const vitamins = [...(data.vitamins ?? []), ...(data.minerals ?? [])].slice(0, 3).join(', ')
+      if (vitamins) lines.push(`VITAMINAS: ${vitamins}`)
+      if (data.benefits?.length) lines.push(`PARA QUE SIRVE: ${data.benefits.join('. ')}`)
+      if (data.tips) lines.push(`CONSEJO: ${data.tips}`)
+      setNutritionInfo(lines.join('\n'))
     } catch {
       setNutritionInfo('No se pudo cargar la información nutricional.')
     } finally { setLoadingNutrition(false) }
