@@ -159,7 +159,7 @@ function VoiceModal({ isOpen, onClose, onSaved }: { isOpen: boolean; onClose: ()
         const ext = mr.mimeType.includes('ogg') ? 'ogg' : 'webm'
         const formData = new FormData()
         formData.append('file', blob, `audio.${ext}`)
-        const token = localStorage.getItem('token')
+        const token = localStorage.getItem('freshly_token')
         const res = await fetch('/api/purchases/transcribe-audio', {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
