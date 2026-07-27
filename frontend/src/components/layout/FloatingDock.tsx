@@ -39,6 +39,7 @@ export function FloatingDock({ actions }: FloatingDockProps) {
   return (
     <div
       ref={dockRef}
+      className="desktop-fab"
       style={{
         position: 'fixed',
         bottom: '28px',

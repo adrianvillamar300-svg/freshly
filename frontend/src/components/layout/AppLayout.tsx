@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Menu } from 'lucide-react'
 import { Sidebar } from './Sidebar'
+import { MobileBottomNav } from './MobileBottomNav'
 import { Logo } from '../ui/Logo'
 import { ToastProvider } from '../ui/Toast'
 import { useLocation } from 'react-router-dom'
@@ -74,9 +75,16 @@ export function AppLayout() {
         </div>
       </div>
 
+      <MobileBottomNav />
+
       <style>{`
         @media (min-width: 769px) {
           .mobile-only { display: none !important; }
+          .mobile-bottom-nav { display: none !important; }
+        }
+        @media (max-width: 768px) {
+          .desktop-fab { display: none !important; }
+          main { padding-bottom: 104px !important; }
         }
       `}</style>
     </ToastProvider>
