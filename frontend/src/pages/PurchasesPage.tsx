@@ -126,51 +126,73 @@ function VoiceModal({ isOpen, onClose, onSaved }: { isOpen: boolean; onClose: ()
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
 
+  const [debugMsg, setDebugMsg] = useState('')
+
+  const sendAudio = async (chunks: Blob[], mimeType: string) => {
+    const blob = new Blob(chunks, { type: mimeType })
+    setDebugMsg(`Audio: ${blob.size} bytes, tipo: ${mimeType}`)
+    if (blob.size < 500) {
+      toast('Audio muy corto, habla un poco más.', 'error')
+      setDebugMsg('Error: audio muy corto')
+      return
+    }
+    setLoading(true)
+    try {
+      const ext = mimeType.includes('ogg') ? 'ogg' : mimeType.includes('mp4') ? 'mp4' : 'webm'
+      const formData = new FormData()
+      formData.append('file', blob, `audio.${ext}`)
+      const token = localStorage.getItem('freshly_token')
+      setDebugMsg(`Enviando al servidor... token: ${token ? 'ok' : 'NULL'}`)
+      const res = await fetch('/api/purchases/transcribe-audio', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      })
+      setDebugMsg(`Respuesta: ${res.status}`)
+      if (!res.ok) { const d = await res.json(); throw new Error(d.detail || `Error ${res.status}`) }
+      const data = await res.json()
+      setDebugMsg(`Transcrito: "${data.text}"`)
+      setTranscript(data.text)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Error desconocido'
+      setDebugMsg(`ERROR: ${msg}`)
+      toast(msg, 'error')
+    } finally { setLoading(false) }
+  }
+
   const startRec = async () => {
+    setDebugMsg('')
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? 'audio/webm;codecs=opus'
-        : MediaRecorder.isTypeSupported('audio/webm')
-        ? 'audio/webm'
-        : 'audio/ogg'
-      const mr = new MediaRecorder(stream, { mimeType })
+      // Detectar mejor formato soportado
+      const mimeType = ['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/ogg','audio/mp4']
+        .find(t => MediaRecorder.isTypeSupported(t)) || ''
+      setDebugMsg(`Formato: ${mimeType || 'default'}`)
+      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
       chunksRef.current = []
+      // onstop ANTES de start para garantizar que se dispara
+      mr.onstop = () => {
+        stream.getTracks().forEach(t => t.stop())
+        sendAudio(chunksRef.current, mr.mimeType)
+      }
       mr.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
-      mr.start(250)
+      mr.start(500)
       mediaRecorderRef.current = mr
       setRecording(true)
-    } catch {
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Sin acceso al micrófono'
+      setDebugMsg(`ERROR mic: ${msg}`)
       toast('No se pudo acceder al micrófono. Verifica los permisos.', 'error')
     }
   }
 
   const stopRec = () => {
+    setDebugMsg('Deteniendo grabación...')
+    setRecording(false)
     const mr = mediaRecorderRef.current
-    if (!mr) return
-    mr.onstop = async () => {
-      // Detener tracks del stream para liberar el micrófono
-      mr.stream.getTracks().forEach(t => t.stop())
-      const blob = new Blob(chunksRef.current, { type: mr.mimeType })
-      if (blob.size < 1000) { toast('Audio muy corto, intenta de nuevo.', 'error'); setRecording(false); return }
-      setLoading(true)
-      setRecording(false)
-      try {
-        const ext = mr.mimeType.includes('ogg') ? 'ogg' : 'webm'
-        const formData = new FormData()
-        formData.append('file', blob, `audio.${ext}`)
-        const token = localStorage.getItem('freshly_token')
-        const res = await fetch('/api/purchases/transcribe-audio', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-          body: formData,
-        })
-        if (!res.ok) { const d = await res.json(); throw new Error(d.detail || 'Error') }
-        const { text } = await res.json()
-        setTranscript(text)
-      } catch (e: unknown) {
-        toast(e instanceof Error ? e.message : 'Error al transcribir', 'error')
-      } finally { setLoading(false) }
+    if (!mr || mr.state === 'inactive') {
+      setDebugMsg('Error: grabador inactivo')
+      return
     }
     mr.stop()
   }
@@ -220,6 +242,11 @@ function VoiceModal({ isOpen, onClose, onSaved }: { isOpen: boolean; onClose: ()
           <p style={{ fontSize: '13px', color: 'var(--text-secondary)', textAlign: 'center' }}>
             {loading ? '⏳ Transcribiendo...' : recording ? '🔴 Grabando... toca para detener' : 'Toca para grabar'}
           </p>
+          {debugMsg ? (
+            <p style={{ fontSize: '11px', color: '#aaa', textAlign: 'center', background: '#1a1a1a', padding: '6px 10px', borderRadius: '6px', maxWidth: '100%', wordBreak: 'break-all' }}>
+              🔍 {debugMsg}
+            </p>
+          ) : null}
         </div>
 
         {/* Transcript */}
