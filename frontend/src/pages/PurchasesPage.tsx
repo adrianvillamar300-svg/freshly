@@ -141,7 +141,6 @@ function VoiceModal({ isOpen, onClose, onSaved }: { isOpen: boolean; onClose: ()
     r.lang = navigator.language?.startsWith('es') ? navigator.language : 'es-ES'
     r.continuous = true
     r.interimResults = true
-    r.maxAlternatives = 1
 
     r.onresult = (e: SpeechRecognitionEvent) => {
       const t = Array.from(e.results).map(r => r[0].transcript).join(' ')
