@@ -6,6 +6,7 @@ import type {
   SpendingByDate, DashboardSummary,
   RecipeSuggestionsOut, Recipe,
   ParsedPurchasePreview, ParsedReceiptPreview,
+  NutritionInfo,
 } from '../types'
 
 const BASE_URL = import.meta.env.VITE_API_URL
@@ -64,6 +65,8 @@ export const inventoryApi = {
     api.post<InventoryItem>(`/inventory/${id}/consume`, { amount }).then(r => r.data),
   delete: (id: string) => api.delete(`/inventory/${id}`).then(r => r.data),
   expiring: (days?: number) => api.get<InventoryItem[]>('/inventory/expiring', { params: { days } }).then(r => r.data),
+  nutrition: (foodName: string) =>
+    api.get<NutritionInfo>(`/inventory/nutrition/${encodeURIComponent(foodName)}`).then(r => r.data),
   analyzePhoto: (file: File) => {
     const form = new FormData(); form.append('file', file)
     return api.post<{ items: Array<{ food_name: string; quantity: number; unit: string }> }>(

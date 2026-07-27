@@ -214,3 +214,37 @@ async def analyze_inventory_photo(
 
     items = analyze_food_photo(file_bytes, file.content_type)
     return {"items": items}
+
+
+@router.get("/nutrition/{food_name}", response_model=schemas.NutritionOut)
+def get_nutrition(
+    food_name: str,
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    """Obtiene información nutricional y beneficios de un alimento usando IA."""
+    from app.services.bedrock_service import call_claude
+    from app.services.ai_utils import extract_json
+
+    prompt = f"""Proporciona información nutricional detallada sobre: {food_name}
+
+Responde SOLO con un JSON válido, sin texto extra, sin backticks. Formato exacto:
+{{
+  "food_name": "{food_name}",
+  "calories": "X kcal por 100g",
+  "protein": "Xg por 100g",
+  "carbs": "Xg por 100g",
+  "fat": "Xg por 100g",
+  "fiber": "Xg por 100g",
+  "vitamins": ["Vitamina C", "Vitamina A"],
+  "minerals": ["Hierro", "Calcio"],
+  "benefits": ["Beneficio 1 breve", "Beneficio 2 breve", "Beneficio 3 breve"],
+  "tips": "Consejo breve de consumo o conservación"
+}}"""
+
+    try:
+        raw = call_claude(prompt, max_tokens=600)
+        data = extract_json(raw)
+        data["food_name"] = food_name
+        return schemas.NutritionOut(**data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al obtener información nutricional: {str(e)}")

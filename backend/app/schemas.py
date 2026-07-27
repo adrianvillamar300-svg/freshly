@@ -158,3 +158,17 @@ class RecipeOut(BaseModel):
     created_at: datetime
     class Config:
         from_attributes = True
+
+
+# ---------- NUTRITION ----------
+class NutritionOut(BaseModel):
+    food_name: str
+    calories: Optional[str] = None
+    protein: Optional[str] = None
+    carbs: Optional[str] = None
+    fat: Optional[str] = None
+    fiber: Optional[str] = None
+    vitamins: Optional[List[str]] = None
+    minerals: Optional[List[str]] = None
+    benefits: Optional[List[str]] = None
+    tips: Optional[str] = None

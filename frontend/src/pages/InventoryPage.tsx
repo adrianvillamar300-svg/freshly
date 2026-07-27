@@ -14,7 +14,7 @@ import { FreshlyDock } from '../components/layout/FloatingDock'
 import { useToast } from '../components/ui/Toast'
 import { inventoryApi } from '../lib/api'
 import { getFoodEmoji } from '../lib/foodEmoji'
-import type { InventoryItem, InventoryItemCreate } from '../types'
+import type { InventoryItem, InventoryItemCreate, NutritionInfo } from '../types'
 
 const UNITS = ['unidad','kg','g','L','ml','docena','caja','bolsa','lata','paquete']
 const LOCATIONS = [
@@ -361,6 +361,115 @@ function PhotoAnalysisModal({ onClose, onItemsAdded }: {
   )
 }
 
+// ── Nutrition Modal ───────────────────────────────────────────────────────────
+function NutritionModal({ foodName, onClose }: { foodName: string; onClose: () => void }) {
+  const [info, setInfo] = useState<NutritionInfo | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    inventoryApi.nutrition(foodName)
+      .then(setInfo)
+      .catch(() => setError('No se pudo obtener la información nutricional. Intenta de nuevo.'))
+      .finally(() => setLoading(false))
+  }, [foodName])
+
+  const macroStyle = {
+    display: 'flex', flexDirection: 'column' as const, alignItems: 'center',
+    background: 'var(--surface-2)', borderRadius: '10px', padding: '10px 14px', flex: 1, minWidth: '70px',
+  }
+
+  return (
+    <Modal isOpen onClose={onClose} title={`🥗 ${foodName}`} size="md">
+      {loading && (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', padding: '32px 0' }}>
+          <Loader size={28} style={{ animation: 'spin 1s linear infinite', color: 'var(--primary)' }} />
+          <span style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>Analizando con IA…</span>
+        </div>
+      )}
+      {error && !loading && (
+        <div style={{ textAlign: 'center', padding: '24px 0' }}>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: '16px' }}>{error}</p>
+          <Button variant="ghost" onClick={onClose}>Volver a la lista</Button>
+        </div>
+      )}
+      {info && !loading && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+          {/* Macros */}
+          <div>
+            <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '10px' }}>Valores por 100g</p>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {[
+                { label: '🔥 Calorías', val: info.calories },
+                { label: '🥩 Proteínas', val: info.protein },
+                { label: '🍞 Carbos', val: info.carbs },
+                { label: '🫒 Grasas', val: info.fat },
+                { label: '🌾 Fibra', val: info.fiber },
+              ].filter(m => m.val).map(m => (
+                <div key={m.label} style={macroStyle}>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '2px' }}>{m.label}</span>
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', textAlign: 'center' }}>{m.val}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Vitamins & Minerals */}
+          {((info.vitamins?.length ?? 0) > 0 || (info.minerals?.length ?? 0) > 0) && (
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              {(info.vitamins?.length ?? 0) > 0 && (
+                <div style={{ flex: 1, minWidth: '140px' }}>
+                  <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>💊 Vitaminas</p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {info.vitamins!.map(v => (
+                      <span key={v} style={{ background: 'var(--surface-2)', borderRadius: '20px', padding: '3px 10px', fontSize: '12px', color: 'var(--text-secondary)' }}>{v}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {(info.minerals?.length ?? 0) > 0 && (
+                <div style={{ flex: 1, minWidth: '140px' }}>
+                  <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>⚡ Minerales</p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {info.minerals!.map(m => (
+                      <span key={m} style={{ background: 'var(--surface-2)', borderRadius: '20px', padding: '3px 10px', fontSize: '12px', color: 'var(--text-secondary)' }}>{m}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Benefits */}
+          {(info.benefits?.length ?? 0) > 0 && (
+            <div>
+              <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>✨ Beneficios</p>
+              <ul style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {info.benefits!.map(b => (
+                  <li key={b} style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>{b}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Tips */}
+          {info.tips && (
+            <div style={{ background: 'var(--surface-2)', borderRadius: '10px', padding: '12px 14px' }}>
+              <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '4px' }}>💡 Consejo</p>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>{info.tips}</p>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <Button variant="ghost" onClick={onClose}>Cerrar</Button>
+          </div>
+        </div>
+      )}
+      <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
+    </Modal>
+  )
+}
+
 export function InventoryPage() {
   const { toast } = useToast()
   const navigate = useNavigate()
@@ -374,6 +483,7 @@ export function InventoryPage() {
   const [addLoading, setAddLoading] = useState(false)
   const [deleteId, setDeleteId] = useState<string|null>(null)
   const [photoModal, setPhotoModal] = useState(false)
+  const [nutritionItem, setNutritionItem] = useState<string|null>(null)
 
   const load = () =>
     inventoryApi.list().then(setItems).catch(console.error).finally(()=>setLoading(false))
@@ -514,6 +624,10 @@ export function InventoryPage() {
 
                     {/* Actions */}
                     <div style={{ display:'flex', gap:'2px', flexShrink:0 }}>
+                      <button onClick={()=>setNutritionItem(item.food_name)} title="Info nutricional" style={{ width:'30px', height:'30px', display:'flex', alignItems:'center', justifyContent:'center', borderRadius:'7px', color:'var(--text-secondary)', cursor:'pointer', transition:'all var(--transition)', background:'none', border:'none', fontSize:'14px' }}
+                        onMouseEnter={e=>{e.currentTarget.style.background='var(--surface-2)';e.currentTarget.style.color='var(--text)'}}
+                        onMouseLeave={e=>{e.currentTarget.style.background='';e.currentTarget.style.color='var(--text-secondary)'}}
+                      >🥗</button>
                       <button onClick={()=>setConsumeItem(item)} title="Registrar consumo" style={{ width:'30px', height:'30px', display:'flex', alignItems:'center', justifyContent:'center', borderRadius:'7px', color:'var(--text-secondary)', cursor:'pointer', transition:'all var(--transition)', background:'none', border:'none' }}
                         onMouseEnter={e=>{e.currentTarget.style.background='var(--primary-dim)';e.currentTarget.style.color='var(--primary)'}}
                         onMouseLeave={e=>{e.currentTarget.style.background='';e.currentTarget.style.color='var(--text-secondary)'}}
@@ -565,6 +679,10 @@ export function InventoryPage() {
           onClose={() => setPhotoModal(false)}
           onItemsAdded={() => load()}
         />
+      )}
+
+      {nutritionItem && (
+        <NutritionModal foodName={nutritionItem} onClose={() => setNutritionItem(null)} />
       )}
 
       <FreshlyDock

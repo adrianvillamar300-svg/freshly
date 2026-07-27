@@ -65,3 +65,16 @@ export interface Recipe {
 
 export interface ParsedPurchasePreview { items: PurchaseItemCreate[] }
 export interface ParsedReceiptPreview { items: PurchaseItemCreate[]; receipt_image_url?: string|null }
+
+export interface NutritionInfo {
+  food_name: string
+  calories?: string | null
+  protein?: string | null
+  carbs?: string | null
+  fat?: string | null
+  fiber?: string | null
+  vitamins?: string[] | null
+  minerals?: string[] | null
+  benefits?: string[] | null
+  tips?: string | null
+}
