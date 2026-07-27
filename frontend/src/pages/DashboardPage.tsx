@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { DollarSign, ShoppingBag, Package, TrendingUp, TrendingDown, AlertTriangle, Check, Plus, Mic, MicOff, Camera, Leaf, BarChart2, Activity, ChevronRight, Flame, Clock, Refrigerator, Archive, Upload, Loader, X as XIcon } from 'lucide-react'
+import { DollarSign, ShoppingBag, Package, TrendingUp, TrendingDown, AlertTriangle, Check, Plus, Mic, MicOff, Camera, Leaf, BarChart2, Activity, ChevronRight, Flame, Clock, Refrigerator, Archive, Upload, Loader, X as XIcon, Sparkles, Receipt } from 'lucide-react'
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { format, differenceInDays, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -426,21 +426,34 @@ function PhotoAnalysisModal({ onClose, onItemsAdded }: {
 }
 
 // ── FAB Dock ───────────────────────────────────────────────
+function DashboardDockItem({ action, index, onClose }: { action: { icon: React.ReactNode; label: string; tooltip: string; onClick: ()=>void; color: string }; index: number; onClose: ()=>void }) {
+  const [hovered, setHovered] = useState(false)
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:'8px', animation:`dockExpand 0.2s ease ${index*0.05}s both`, position:'relative' }}
+      onMouseEnter={()=>setHovered(true)} onMouseLeave={()=>setHovered(false)}>
+      {hovered && (
+        <div style={{ position:'absolute', right:'54px', background:'var(--surface-2)', border:`1px solid ${action.color}40`, borderRadius:'var(--radius-sm)', padding:'6px 10px', fontSize:'11.5px', color:'var(--text-secondary)', whiteSpace:'nowrap', boxShadow:'0 4px 16px rgba(0,0,0,0.3)', pointerEvents:'none', animation:'fadeIn 0.15s ease', zIndex:10 }}>
+          {action.tooltip}
+        </div>
+      )}
+      <div style={{ background:'var(--surface)', border:'1px solid var(--border-subtle)', borderRadius:'var(--radius-sm)', padding:'5px 12px', fontSize:'13px', fontWeight:500, whiteSpace:'nowrap', boxShadow:'var(--shadow)', color:'var(--text)' }}>{action.label}</div>
+      <button onClick={()=>{action.onClick();onClose()}} style={{ width:'44px', height:'44px', borderRadius:'50%', background:hovered?`${action.color}28`:`${action.color}18`, border:`1px solid ${action.color}30`, display:'flex', alignItems:'center', justifyContent:'center', color:action.color, cursor:'pointer', flexShrink:0, transition:'all var(--transition)', transform:hovered?'scale(1.08)':'scale(1)', boxShadow:hovered?`0 6px 20px ${action.color}40`:`0 4px 16px ${action.color}25` }}>{action.icon}</button>
+    </div>
+  )
+}
+
 function DashboardDock({ onManual, onVoice, onReceipt, onPhoto }: { onManual:()=>void; onVoice:()=>void; onReceipt:()=>void; onPhoto:()=>void }) {
   const [open, setOpen] = useState(false)
   const actions = [
-    { icon:<Leaf size={17}/>, label:'Manual', onClick:onManual, color:'#3ED598' },
-    { icon:<Mic size={17}/>, label:'Por voz', onClick:onVoice, color:'#6495ED' },
-    { icon:<Camera size={17}/>, label:'Foto IA', onClick:onPhoto, color:'#FF7F7F' },
-    { icon:<Camera size={17}/>, label:'Con foto', onClick:onReceipt, color:'#F5B841' },
+    { icon:<Leaf size={17}/>,     label:'Manual',   tooltip:'Escribe el nombre, cantidad y ubicación del alimento', onClick:onManual,  color:'#3ED598' },
+    { icon:<Mic size={17}/>,      label:'Por voz',  tooltip:'Dicta los alimentos y la IA los interpreta',           onClick:onVoice,   color:'#6495ED' },
+    { icon:<Sparkles size={17}/>, label:'Foto IA',  tooltip:'Saca foto a tus alimentos y la IA los identifica',     onClick:onPhoto,   color:'#FF7F7F' },
+    { icon:<Receipt size={17}/>,  label:'Factura',  tooltip:'Escanea un ticket de compra para importar todo',        onClick:onReceipt, color:'#F5B841' },
   ]
   return (
     <div className="desktop-fab" style={{ position:'fixed', bottom:'24px', right:'20px', zIndex:50, display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'10px' }}>
       {open && actions.map((a,i)=>(
-        <div key={i} style={{ display:'flex', alignItems:'center', gap:'8px', animation:`dockExpand 0.2s ease ${i*0.05}s both` }}>
-          <div style={{ background:'var(--surface)', border:'1px solid var(--border-subtle)', borderRadius:'var(--radius-sm)', padding:'5px 12px', fontSize:'13px', fontWeight:500, whiteSpace:'nowrap', boxShadow:'var(--shadow)' }}>{a.label}</div>
-          <button onClick={()=>{a.onClick();setOpen(false)}} style={{ width:'44px', height:'44px', borderRadius:'50%', background:`${a.color}18`, border:`1px solid ${a.color}30`, display:'flex', alignItems:'center', justifyContent:'center', color:a.color, cursor:'pointer', flexShrink:0 }}>{a.icon}</button>
-        </div>
+        <DashboardDockItem key={i} action={a} index={i} onClose={()=>setOpen(false)} />
       ))}
       <button onClick={()=>setOpen(p=>!p)} style={{ width:'54px', height:'54px', borderRadius:'50%', background:open?'var(--surface)':'var(--primary)', border:open?'1px solid var(--border-subtle)':'none', display:'flex', alignItems:'center', justifyContent:'center', color:open?'var(--text-secondary)':'#0B0F0E', cursor:'pointer', transition:'all 0.3s cubic-bezier(0.34,1.56,0.64,1)', boxShadow:open?'var(--shadow)':'0 4px 24px rgba(62,213,152,0.45)', transform:open?'rotate(45deg)':'' }}>
         <Plus size={22}/>

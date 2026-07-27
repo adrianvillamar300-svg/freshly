@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
-import { Home, Leaf, ChefHat, BarChart3, Plus, PenLine, Mic, Camera } from 'lucide-react'
+import { Home, Leaf, ChefHat, BarChart3, Plus, PenLine, Mic, Sparkles, Receipt } from 'lucide-react'
 
 const leftItems = [
   { to: '/dashboard', icon: Home, label: 'Inicio' },
@@ -12,11 +12,46 @@ const rightItems = [
 ]
 
 const quickActions = [
-  { icon: PenLine, label: 'Manual',   action: 'manual',   color: '#3ED598' },
-  { icon: Mic,     label: 'Voz',      action: 'voice',    color: '#6495ED' },
-  { icon: Camera,  label: 'Foto IA',  action: 'photoIA',  color: '#FF7F7F' },
-  { icon: Camera,  label: 'Factura',  action: 'receipt',  color: '#F5B841' },
+  { icon: PenLine,   label: 'Manual',  tooltip: 'Agregar manualmente',              action: 'manual',  color: '#3ED598' },
+  { icon: Mic,       label: 'Voz',     tooltip: 'Dictar alimentos con voz',         action: 'voice',   color: '#6495ED' },
+  { icon: Sparkles,  label: 'Foto IA', tooltip: 'Foto → la IA identifica alimentos',action: 'photoIA', color: '#FF7F7F' },
+  { icon: Receipt,   label: 'Factura', tooltip: 'Escanear ticket de compra',        action: 'receipt', color: '#F5B841' },
 ]
+
+function MobileActionButton({ action, onPress }: { action: typeof quickActions[0]; onPress: () => void }) {
+  const [showTip, setShowTip] = useState(false)
+  const Icon = action.icon
+  return (
+    <button
+      onClick={onPress}
+      onMouseEnter={() => setShowTip(true)}
+      onMouseLeave={() => setShowTip(false)}
+      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', position: 'relative', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+    >
+      {showTip && (
+        <div style={{
+          position: 'absolute', bottom: '60px', left: '50%', transform: 'translateX(-50%)',
+          background: 'var(--surface-2)', border: `1px solid ${action.color}40`,
+          borderRadius: 'var(--radius-sm)', padding: '5px 9px',
+          fontSize: '11px', color: 'var(--text-secondary)', whiteSpace: 'nowrap',
+          boxShadow: '0 4px 14px rgba(0,0,0,0.35)', pointerEvents: 'none',
+          animation: 'fadeIn 0.15s ease', zIndex: 10,
+        }}>
+          {action.tooltip}
+        </div>
+      )}
+      <div style={{
+        width: '46px', height: '46px', borderRadius: '50%',
+        background: `${action.color}1c`, border: `1px solid ${action.color}40`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: action.color, transition: 'all var(--transition)',
+      }}>
+        <Icon size={19} />
+      </div>
+      <span style={{ fontSize: '10.5px', fontWeight: 600, color: action.color }}>{action.label}</span>
+    </button>
+  )
+}
 
 function NavButton({ to, icon: Icon, label }: { to: string; icon: React.ElementType; label: string }) {
   const location = useLocation()
@@ -80,21 +115,7 @@ export function MobileBottomNav() {
           animation: 'slideDown 0.2s ease',
         }}>
           {quickActions.map(a => (
-            <button
-              key={a.action}
-              onClick={() => goTo(a.action)}
-              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px' }}
-            >
-              <div style={{
-                width: '46px', height: '46px', borderRadius: '50%',
-                background: `${a.color}1c`, border: `1px solid ${a.color}40`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: a.color,
-              }}>
-                <a.icon size={19} />
-              </div>
-              <span style={{ fontSize: '10.5px', fontWeight: 600, color: a.color }}>{a.label}</span>
-            </button>
+            <MobileActionButton key={a.action} action={a} onPress={() => goTo(a.action)} />
           ))}
         </div>
       )}

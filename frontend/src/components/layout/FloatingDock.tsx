@@ -1,15 +1,90 @@
 import { useState, useRef, useEffect } from 'react'
-import { Plus, Leaf, Mic, Camera, X } from 'lucide-react'
+import { Plus, Leaf, Mic, Camera, X, Sparkles, Receipt } from 'lucide-react'
 
 interface DockAction {
   icon: React.ReactNode
   label: string
+  tooltip: string
   onClick: () => void
   color: string
 }
 
 interface FloatingDockProps {
   actions: DockAction[]
+}
+
+function DockItem({ action, index, onClose }: { action: DockAction; index: number; onClose: () => void }) {
+  const [hovered, setHovered] = useState(false)
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        animation: `dockExpand 0.2s ease ${index * 0.05}s both`,
+        position: 'relative',
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {/* Tooltip */}
+      {hovered && (
+        <div style={{
+          position: 'absolute',
+          right: '56px',
+          background: 'var(--surface-2)',
+          border: `1px solid ${action.color}40`,
+          borderRadius: 'var(--radius-sm)',
+          padding: '6px 10px',
+          fontSize: '11.5px',
+          color: 'var(--text-secondary)',
+          whiteSpace: 'nowrap',
+          boxShadow: `0 4px 16px rgba(0,0,0,0.3)`,
+          pointerEvents: 'none',
+          animation: 'fadeIn 0.15s ease',
+          zIndex: 10,
+        }}>
+          {action.tooltip}
+        </div>
+      )}
+
+      {/* Label */}
+      <div style={{
+        background: 'var(--surface)',
+        border: '1px solid var(--border-subtle)',
+        borderRadius: 'var(--radius-sm)',
+        padding: '5px 12px',
+        fontSize: '13px',
+        fontWeight: 500,
+        color: 'var(--text)',
+        whiteSpace: 'nowrap',
+        boxShadow: 'var(--shadow)',
+      }}>
+        {action.label}
+      </div>
+
+      {/* Button */}
+      <button
+        onClick={() => { action.onClick(); onClose() }}
+        style={{
+          width: '46px', height: '46px',
+          borderRadius: '50%',
+          background: hovered ? `${action.color}28` : `${action.color}18`,
+          border: `1px solid ${action.color}30`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: action.color,
+          cursor: 'pointer',
+          transition: 'all var(--transition)',
+          boxShadow: hovered ? `0 6px 20px ${action.color}40` : `0 4px 16px ${action.color}25`,
+          transform: hovered ? 'scale(1.08)' : 'scale(1)',
+          flexShrink: 0,
+        }}
+      >
+        {action.icon}
+      </button>
+    </div>
+  )
 }
 
 export function FloatingDock({ actions }: FloatingDockProps) {
@@ -53,59 +128,7 @@ export function FloatingDock({ actions }: FloatingDockProps) {
     >
       {/* Action items */}
       {isOpen && actions.map((action, i) => (
-        <div
-          key={i}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            animation: `dockExpand 0.2s ease ${i * 0.05}s both`,
-          }}
-        >
-          {/* Label */}
-          <div style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: 'var(--radius-sm)',
-            padding: '5px 12px',
-            fontSize: '13px',
-            fontWeight: 500,
-            color: 'var(--text)',
-            whiteSpace: 'nowrap',
-            boxShadow: 'var(--shadow)',
-          }}>
-            {action.label}
-          </div>
-
-          {/* Button */}
-          <button
-            onClick={() => { action.onClick(); setIsOpen(false) }}
-            style={{
-              width: '46px', height: '46px',
-              borderRadius: '50%',
-              background: `${action.color}18`,
-              border: `1px solid ${action.color}30`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: action.color,
-              cursor: 'pointer',
-              transition: 'all var(--transition)',
-              boxShadow: `0 4px 16px ${action.color}25`,
-              flexShrink: 0,
-            }}
-            onMouseEnter={e => {
-              e.currentTarget.style.background = `${action.color}28`
-              e.currentTarget.style.transform = 'scale(1.08)'
-              e.currentTarget.style.boxShadow = `0 6px 20px ${action.color}40`
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.background = `${action.color}18`
-              e.currentTarget.style.transform = ''
-              e.currentTarget.style.boxShadow = `0 4px 16px ${action.color}25`
-            }}
-          >
-            {action.icon}
-          </button>
-        </div>
+        <DockItem key={i} action={action} index={i} onClose={() => setIsOpen(false)} />
       ))}
 
       {/* Main button */}
@@ -160,25 +183,29 @@ export function FreshlyDock({ onManual, onVoice, onReceipt, onPhoto }: FreshlyDo
   const actions: DockAction[] = [
     {
       icon: <Leaf size={18} />,
-      label: 'Agregar manualmente',
+      label: 'Manual',
+      tooltip: 'Escribe el nombre, cantidad y ubicación del alimento',
       onClick: onManual,
       color: '#3ED598',
     },
     {
       icon: <Mic size={18} />,
-      label: 'Agregar por voz',
+      label: 'Por voz',
+      tooltip: 'Dicta los alimentos y la IA los interpreta',
       onClick: onVoice,
       color: '#6495ED',
     },
     {
-      icon: <Camera size={18} />,
-      label: 'Foto de alimento (IA)',
+      icon: <Sparkles size={18} />,
+      label: 'Foto IA',
+      tooltip: 'Saca foto a tus alimentos y la IA los identifica',
       onClick: onPhoto ?? (() => {}),
       color: '#FF7F7F',
     },
     {
-      icon: <Camera size={18} />,
-      label: 'Foto de factura',
+      icon: <Receipt size={18} />,
+      label: 'Factura',
+      tooltip: 'Escanea un ticket de compra para importar todo',
       onClick: onReceipt,
       color: '#F5B841',
     },
