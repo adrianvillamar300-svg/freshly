@@ -125,17 +125,15 @@ function VoiceModal({ isOpen, onClose, onSaved }: { isOpen: boolean; onClose: ()
   const [saving, setSaving] = useState(false)
   const recognitionRef = useRef<SpeechRecognition | null>(null)
 
-  const startRec = () => {
-    // Check browser support
-    const SpeechRecognitionAPI = (
-      (window as unknown as Record<string, unknown>).SpeechRecognition ||
-      (window as unknown as Record<string, unknown>).webkitSpeechRecognition
-    ) as SpeechRecognitionConstructor | undefined
+  const SpeechRecognitionAPI = (
+    (window as unknown as Record<string, unknown>).SpeechRecognition ||
+    (window as unknown as Record<string, unknown>).webkitSpeechRecognition
+  ) as SpeechRecognitionConstructor | undefined
 
-    if (!SpeechRecognitionAPI) {
-      toast('Tu navegador no soporta reconocimiento de voz. Usa Chrome.', 'error')
-      return
-    }
+  const isRecordingRef = useRef(false)
+
+  const createAndStart = () => {
+    if (!SpeechRecognitionAPI) return
 
     const r = new SpeechRecognitionAPI()
     r.lang = navigator.language?.startsWith('es') ? navigator.language : 'es-ES'
@@ -149,43 +147,47 @@ function VoiceModal({ isOpen, onClose, onSaved }: { isOpen: boolean; onClose: ()
 
     r.onerror = (e: Event) => {
       const err = (e as unknown as { error: string }).error
+      if (err === 'aborted' || err === 'no-speech') return
       if (err === 'not-allowed' || err === 'service-not-allowed') {
         toast('Permiso de micrófono denegado. Habilítalo en la configuración del navegador.', 'error')
       } else if (err === 'network') {
         toast('Error de red. Verifica tu conexión a internet.', 'error')
-      } else if (err === 'no-speech') {
-        // Silence timeout — no es un error real, simplemente reiniciar
-        return
       } else if (err === 'audio-capture') {
         toast('No se detectó micrófono. Verifica que esté conectado y habilitado.', 'error')
       } else {
         toast(`Error de reconocimiento: ${err || 'desconocido'}`, 'error')
       }
+      isRecordingRef.current = false
       setRecording(false)
     }
 
     r.onend = () => {
-      // Si sigue en modo recording (el usuario no detuvo manualmente), reiniciar
-      // para mantener escucha continua (la API para sola tras silencio)
-      setRecording(prev => {
-        if (prev) {
-          try { r.start() } catch { /* ya iniciado o cerrado */ }
-          return true
-        }
-        return false
-      })
+      if (isRecordingRef.current) {
+        setTimeout(() => { if (isRecordingRef.current) createAndStart() }, 100)
+      }
+    }
+
+    r.start()
+    recognitionRef.current = r
+  }
+
+  const startRec = () => {
+    if (!SpeechRecognitionAPI) {
+      toast('Tu navegador no soporta reconocimiento de voz. Usa Chrome.', 'error')
+      return
     }
 
     try {
-      r.start()
-      recognitionRef.current = r
+      isRecordingRef.current = true
       setRecording(true)
+      createAndStart()
     } catch {
       toast('No se pudo iniciar el micrófono. Intenta recargar la página.', 'error')
     }
   }
 
   const stopRec = () => {
+    isRecordingRef.current = false
     recognitionRef.current?.stop()
     setRecording(false)
   }
