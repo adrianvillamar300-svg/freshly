@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { DollarSign, ShoppingBag, Package, TrendingUp, TrendingDown, AlertTriangle, Check, Plus, Mic, MicOff, Camera, Leaf, BarChart2, Activity, ChevronRight, Flame, Clock, Refrigerator, Archive } from 'lucide-react'
+import { DollarSign, ShoppingBag, Package, TrendingUp, TrendingDown, AlertTriangle, Check, Plus, Mic, MicOff, Camera, Leaf, BarChart2, Activity, ChevronRight, Flame, Clock, Refrigerator, Archive, Upload, Loader, X as XIcon } from 'lucide-react'
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { format, differenceInDays, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -13,6 +13,16 @@ import { Input } from '../components/ui/Input'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../components/ui/Toast'
 import { dashboardApi, inventoryApi, purchasesApi } from '../lib/api'
+
+// ── Photo analysis types & constants ──────────────────────
+type DetectedItem = { food_name: string; quantity: number; unit: string; storage_location: string }
+const PHOTO_UNITS = ['unidad','kg','g','L','ml','docena','caja','bolsa','lata','paquete']
+const PHOTO_LOCATIONS = [
+  { value:'refrigerator', label:'🧊 Refrigerador', color:'#6495ED' },
+  { value:'freezer',      label:'❄️ Congelador',   color:'#89CFF0' },
+  { value:'pantry',       label:'🏠 Despensa',      color:'#3ED598' },
+  { value:'cabinet',      label:'🗄️ Armario',       color:'#F5B841' },
+]
 import { getFoodEmoji } from '../lib/foodEmoji'
 import type { SpendingByDate, DashboardSummary, PurchaseItemCreate, InventoryItem } from '../types'
 
@@ -285,12 +295,143 @@ function ReceiptModal({ isOpen, onClose, onSaved }: { isOpen:boolean; onClose:()
   )
 }
 
+// ── Photo Analysis Modal ───────────────────────────────────
+function PhotoAnalysisModal({ onClose, onItemsAdded }: {
+  onClose: () => void
+  onItemsAdded: (items: DetectedItem[]) => void
+}) {
+  const { toast } = useToast()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+  const [preview, setPreview] = useState<string | null>(null)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [detected, setDetected] = useState<DetectedItem[] | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  const handleFile = async (file: File) => {
+    if (!file.type.startsWith('image/')) { toast('Solo se aceptan imágenes', 'error'); return }
+    const url = URL.createObjectURL(file)
+    setPreview(url); setDetected(null); setAnalyzing(true)
+    try {
+      const result = await inventoryApi.analyzePhoto(file)
+      const items: DetectedItem[] = result.items.map((i: any) => ({ ...i, storage_location: 'pantry' }))
+      setDetected(items)
+    } catch (err: any) {
+      toast(err?.response?.data?.detail ?? 'Error al analizar la foto', 'error')
+      setPreview(null)
+    } finally { setAnalyzing(false) }
+  }
+
+  const updateItem = (idx: number, field: keyof DetectedItem, value: string | number) =>
+    setDetected(prev => prev ? prev.map((it, i) => i === idx ? { ...it, [field]: value } : it) : prev)
+
+  const removeItem = (idx: number) =>
+    setDetected(prev => prev ? prev.filter((_, i) => i !== idx) : prev)
+
+  const handleSave = async () => {
+    if (!detected || detected.length === 0) return
+    setSaving(true)
+    try {
+      const added: DetectedItem[] = []
+      for (const item of detected) {
+        await inventoryApi.create({ food_name: item.food_name, quantity: item.quantity, unit: item.unit, storage_location: item.storage_location })
+        added.push(item)
+      }
+      toast(`✅ ${added.length} alimento${added.length !== 1 ? 's' : ''} agregado${added.length !== 1 ? 's' : ''} al inventario`)
+      onItemsAdded(added)
+      onClose()
+    } catch { toast('Error al guardar los alimentos', 'error') } finally { setSaving(false) }
+  }
+
+  return (
+    <Modal isOpen onClose={onClose} title="📸 Foto de alimento — IA" size="md">
+      <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
+        {!preview && (
+          <div>
+            <p style={{ fontSize:'13px', color:'var(--text-secondary)', marginBottom:'14px' }}>
+              Toma o sube una foto de tus alimentos y la IA identificará qué hay y en qué cantidad.
+            </p>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
+              <button onClick={()=>cameraInputRef.current?.click()} style={{ padding:'20px 12px', borderRadius:'var(--radius)', border:'1.5px dashed #FF7F7F88', background:'#FF7F7F0A', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:'8px', color:'#FF7F7F', transition:'all var(--transition)' }}
+                onMouseEnter={e=>e.currentTarget.style.background='#FF7F7F18'} onMouseLeave={e=>e.currentTarget.style.background='#FF7F7F0A'}>
+                <Camera size={24}/><span style={{ fontSize:'13px', fontWeight:500 }}>Tomar foto</span>
+              </button>
+              <button onClick={()=>fileInputRef.current?.click()} style={{ padding:'20px 12px', borderRadius:'var(--radius)', border:'1.5px dashed var(--border-subtle)', background:'var(--surface-2)', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:'8px', color:'var(--text-secondary)', transition:'all var(--transition)' }}
+                onMouseEnter={e=>e.currentTarget.style.background='var(--surface-3)'} onMouseLeave={e=>e.currentTarget.style.background='var(--surface-2)'}>
+                <Upload size={24}/><span style={{ fontSize:'13px', fontWeight:500 }}>Subir foto</span>
+              </button>
+            </div>
+            <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" style={{ display:'none' }} onChange={e=>e.target.files?.[0]&&handleFile(e.target.files[0])}/>
+            <input ref={fileInputRef} type="file" accept="image/*" style={{ display:'none' }} onChange={e=>e.target.files?.[0]&&handleFile(e.target.files[0])}/>
+          </div>
+        )}
+        {preview && (
+          <div style={{ position:'relative' }}>
+            <img src={preview} alt="Foto del alimento" style={{ width:'100%', maxHeight:'220px', objectFit:'cover', borderRadius:'var(--radius-sm)', border:'1px solid var(--border-subtle)' }}/>
+            {!analyzing && (
+              <button onClick={()=>{setPreview(null);setDetected(null)}} style={{ position:'absolute', top:'8px', right:'8px', width:'28px', height:'28px', borderRadius:'50%', background:'rgba(0,0,0,0.6)', border:'none', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff' }}>
+                <XIcon size={14}/>
+              </button>
+            )}
+          </div>
+        )}
+        {analyzing && (
+          <div style={{ textAlign:'center', padding:'16px 0', color:'var(--text-secondary)' }}>
+            <Loader size={24} style={{ animation:'spin 1s linear infinite', marginBottom:'8px' }}/>
+            <p style={{ fontSize:'13px' }}>Analizando imagen con IA...</p>
+          </div>
+        )}
+        {detected && detected.length > 0 && (
+          <div>
+            <p style={{ fontSize:'13px', fontWeight:600, color:'var(--text)', marginBottom:'10px' }}>
+              ✨ {detected.length} alimento{detected.length !== 1 ? 's' : ''} detectado{detected.length !== 1 ? 's' : ''} — revisa y ajusta:
+            </p>
+            <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+              {detected.map((item, idx) => (
+                <div key={idx} style={{ padding:'10px 12px', borderRadius:'var(--radius-sm)', background:'var(--surface-2)', border:'1px solid var(--border-subtle)', display:'grid', gridTemplateColumns:'1fr auto auto auto', gap:'8px', alignItems:'center' }}>
+                  <input value={item.food_name} onChange={e=>updateItem(idx,'food_name',e.target.value)} style={{ background:'transparent', border:'none', color:'var(--text)', fontSize:'13px', fontWeight:500, outline:'none', minWidth:0 }}/>
+                  <input type="number" min="0.1" step="0.5" value={item.quantity} onChange={e=>updateItem(idx,'quantity',parseFloat(e.target.value)||1)} style={{ width:'52px', textAlign:'center', background:'var(--surface)', border:'1px solid var(--border-subtle)', borderRadius:'6px', color:'var(--text)', fontSize:'13px', padding:'4px 6px' }}/>
+                  <select value={item.unit} onChange={e=>updateItem(idx,'unit',e.target.value)} style={{ background:'var(--surface)', border:'1px solid var(--border-subtle)', borderRadius:'6px', color:'var(--text)', fontSize:'12px', padding:'4px 6px' }}>
+                    {PHOTO_UNITS.map(u=><option key={u} value={u}>{u}</option>)}
+                  </select>
+                  <button onClick={()=>removeItem(idx)} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', display:'flex' }}><XIcon size={14}/></button>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop:'12px' }}>
+              <p style={{ fontSize:'12px', color:'var(--text-secondary)', marginBottom:'6px' }}>¿Dónde los guardas?</p>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'6px' }}>
+                {PHOTO_LOCATIONS.map(loc=>(
+                  <button key={loc.value} onClick={()=>setDetected(prev=>prev?prev.map(i=>({...i,storage_location:loc.value})):prev)}
+                    style={{ padding:'7px 10px', borderRadius:'var(--radius-sm)', textAlign:'left', background:detected[0]?.storage_location===loc.value?`${loc.color}15`:'var(--surface-2)', border:`1px solid ${detected[0]?.storage_location===loc.value?loc.color:'var(--border-subtle)'}`, cursor:'pointer', fontSize:'12px', color:detected[0]?.storage_location===loc.value?loc.color:'var(--text-secondary)', fontWeight:detected[0]?.storage_location===loc.value?600:400 }}>
+                    {loc.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+        <div style={{ display:'flex', gap:'10px', justifyContent:'flex-end', marginTop:'4px' }}>
+          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
+          {detected && detected.length > 0 && (
+            <Button loading={saving} icon={<Check size={15}/>} onClick={handleSave}>
+              Agregar {detected.length} alimento{detected.length !== 1 ? 's' : ''}
+            </Button>
+          )}
+        </div>
+      </div>
+      <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
+    </Modal>
+  )
+}
+
 // ── FAB Dock ───────────────────────────────────────────────
-function DashboardDock({ onManual, onVoice, onReceipt }: { onManual:()=>void; onVoice:()=>void; onReceipt:()=>void }) {
+function DashboardDock({ onManual, onVoice, onReceipt, onPhoto }: { onManual:()=>void; onVoice:()=>void; onReceipt:()=>void; onPhoto:()=>void }) {
   const [open, setOpen] = useState(false)
   const actions = [
     { icon:<Leaf size={17}/>, label:'Manual', onClick:onManual, color:'#3ED598' },
     { icon:<Mic size={17}/>, label:'Por voz', onClick:onVoice, color:'#6495ED' },
+    { icon:<Camera size={17}/>, label:'Foto IA', onClick:onPhoto, color:'#FF7F7F' },
     { icon:<Camera size={17}/>, label:'Con foto', onClick:onReceipt, color:'#F5B841' },
   ]
   return (
@@ -512,6 +653,7 @@ export function DashboardPage() {
   const [manualOpen, setManualOpen] = useState(false)
   const [voiceOpen, setVoiceOpen] = useState(false)
   const [receiptOpen, setReceiptOpen] = useState(false)
+  const [photoOpen, setPhotoOpen] = useState(false)
 
   const loadData = async () => {
     setLoading(true)
@@ -771,7 +913,8 @@ export function DashboardPage() {
       <ManualModal isOpen={manualOpen} onClose={()=>setManualOpen(false)} onSaved={refreshAll}/>
       <VoiceModal isOpen={voiceOpen} onClose={()=>setVoiceOpen(false)} onSaved={refreshAll}/>
       <ReceiptModal isOpen={receiptOpen} onClose={()=>setReceiptOpen(false)} onSaved={refreshAll}/>
-      <DashboardDock onManual={()=>setManualOpen(true)} onVoice={()=>setVoiceOpen(true)} onReceipt={()=>setReceiptOpen(true)}/>
+      {photoOpen && <PhotoAnalysisModal onClose={()=>setPhotoOpen(false)} onItemsAdded={()=>{ loadInventory(); loadData() }}/>}
+      <DashboardDock onManual={()=>setManualOpen(true)} onVoice={()=>setVoiceOpen(true)} onReceipt={()=>setReceiptOpen(true)} onPhoto={()=>setPhotoOpen(true)}/>
 
       <style>{`
         @keyframes leafFall {
