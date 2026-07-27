@@ -123,30 +123,30 @@ def parse_receipt_file(file_bytes: bytes, media_type: str) -> list[dict]:
     return items
 
 
-FOOD_PHOTO_SYSTEM_PROMPT = """Eres un asistente de inventario de alimentos. El usuario te envía una foto de alimentos (frutas, verduras, carnes, lácteos, etc.) que quiere agregar a su despensa.
+FOOD_PHOTO_SYSTEM_PROMPT = """Eres un asistente de inventario de alimentos con visión muy precisa. El usuario te envía una foto de alimentos (frutas, verduras, carnes, lácteos, etc.) que quiere agregar a su despensa.
 
-Analiza la imagen e identifica qué alimentos ves y estima la cantidad aproximada visible.
+Tu tarea principal es CONTAR con exactitud cada alimento visible. Antes de responder, cuenta mentalmente uno por uno los objetos del mismo tipo que puedas ver (incluyendo los parcialmente visibles o solapados).
 
 Responde ÚNICAMENTE con un JSON válido, sin texto adicional, sin backticks de markdown. El formato exacto es:
 
 {"items": [{"food_name": "string", "quantity": number, "unit": "string"}]}
 
-Reglas:
-- "food_name": nombre del alimento en singular, primera letra mayúscula (ej: "Banana", "Manzana", "Zanahoria", "Pechuga de pollo").
-- "quantity": cantidad aproximada visible en la imagen. Si ves 4 bananas, quantity=4. Si ves un racimo grande, estima. Si ves un kilogramo aproximado de carne, pon 1.
-- "unit": usa "unidad" para frutas/verduras contables (bananas, manzanas, huevos), "kg" para carnes/quesos en bloque, "g" para porciones pequeñas, "l" o "ml" para líquidos en envase, "paquete" para empaques cerrados.
-- Si hay varios alimentos diferentes en la imagen, incluye cada uno como un ítem separado.
-- Si la imagen no muestra alimentos identificables, responde {"items": []}.
-- No incluyas ingredientes preparados, solo alimentos crudos o en su estado natural/empacado.
+Reglas de conteo y formato:
+- "food_name": nombre en singular, primera letra mayúscula (ej: "Banana", "Manzana", "Zanahoria").
+- "quantity": cuenta CADA pieza individual visible, incluso si están juntas o solapadas. Si ves un racimo de bananas, cuenta cada banana del racimo. Sé conservador: si no estás seguro entre N y N+1, usa N.
+- "unit": usa "unidad" para frutas/verduras/huevos contables; "kg" para carnes o quesos en bloque; "g" para porciones pequeñas; "l"/"ml" para líquidos en envase; "paquete" para empaques cerrados.
+- Varios alimentos diferentes → un ítem separado por cada tipo.
+- Imagen sin alimentos identificables → {"items": []}.
+- Solo alimentos crudos o en estado natural/empacado; no incluyas platos preparados.
 
-Ejemplo: foto con 4 bananas y 2 manzanas → {"items": [{"food_name": "Banana", "quantity": 4, "unit": "unidad"}, {"food_name": "Manzana", "quantity": 2, "unit": "unidad"}]}
+Ejemplo: foto con 3 bananas juntas y 2 manzanas → {"items": [{"food_name": "Banana", "quantity": 3, "unit": "unidad"}, {"food_name": "Manzana", "quantity": 2, "unit": "unidad"}]}
 """
 
 
 def analyze_food_photo(file_bytes: bytes, media_type: str) -> list[dict]:
     """Analiza una foto de alimentos (NO una factura) y retorna los alimentos detectados
     con cantidad y unidad estimadas."""
-    prompt = "Identifica los alimentos en esta foto y estima la cantidad visible de cada uno."
+    prompt = "Cuenta con exactitud cada alimento visible en la foto, uno por uno, e identifica qué tipo de alimento es. Si hay frutas o verduras juntas o solapadas, cuenta cada pieza individualmente."
 
     try:
         raw_response = call_claude_vision(

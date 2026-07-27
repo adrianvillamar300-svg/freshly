@@ -12,9 +12,10 @@ const rightItems = [
 ]
 
 const quickActions = [
-  { icon: PenLine, label: 'Manual', action: 'manual', color: '#3ED598' },
-  { icon: Mic, label: 'Voz', action: 'voice', color: '#6495ED' },
-  { icon: Camera, label: 'Foto', action: 'receipt', color: '#F5B841' },
+  { icon: PenLine, label: 'Manual',   action: 'manual',   color: '#3ED598' },
+  { icon: Mic,     label: 'Voz',      action: 'voice',    color: '#6495ED' },
+  { icon: Camera,  label: 'Foto IA',  action: 'photoIA',  color: '#FF7F7F' },
+  { icon: Camera,  label: 'Factura',  action: 'receipt',  color: '#F5B841' },
 ]
 
 function NavButton({ to, icon: Icon, label }: { to: string; icon: React.ElementType; label: string }) {
@@ -51,7 +52,12 @@ export function MobileBottomNav() {
 
   const goTo = (action: string) => {
     setOpen(false)
-    navigate(`/purchases?action=${action}`)
+    if (action === 'photoIA') {
+      // Emitir evento global que las páginas escuchan
+      window.dispatchEvent(new CustomEvent('freshly:openPhotoIA'))
+    } else {
+      navigate(`/purchases?action=${action}`)
+    }
   }
 
   return (
@@ -69,8 +75,8 @@ export function MobileBottomNav() {
       {/* Menú rápido de agregar (Manual / Voz / Foto) */}
       {open && (
         <div style={{
-          display: 'flex', justifyContent: 'center', gap: '22px',
-          padding: '14px 0 6px',
+          display: 'flex', justifyContent: 'center', gap: '12px',
+          padding: '14px 12px 6px',
           animation: 'slideDown 0.2s ease',
         }}>
           {quickActions.map(a => (

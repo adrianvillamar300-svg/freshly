@@ -678,6 +678,11 @@ export function DashboardPage() {
 
   useEffect(() => { loadData() }, [groupBy])
   useEffect(() => { loadInventory() }, [])
+  useEffect(() => {
+    const handler = () => setPhotoOpen(true)
+    window.addEventListener('freshly:openPhotoIA', handler)
+    return () => window.removeEventListener('freshly:openPhotoIA', handler)
+  }, [])
 
   const greeting = () => {
     const h = new Date().getHours()
