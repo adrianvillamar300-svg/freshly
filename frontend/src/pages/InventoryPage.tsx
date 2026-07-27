@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Package, Edit2, Trash2, Check, X, Minus, Plus, AlertTriangle, Clock, Thermometer } from 'lucide-react'
+import { Search, Package, Edit2, Trash2, Check, X, Minus, Plus } from 'lucide-react'
 import { formatDistanceToNow, format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Card } from '../components/ui/Card'
@@ -13,6 +13,7 @@ import { Badge } from '../components/ui/Badge'
 import { FreshlyDock } from '../components/layout/FloatingDock'
 import { useToast } from '../components/ui/Toast'
 import { inventoryApi } from '../lib/api'
+import { getFoodEmoji } from '../lib/foodEmoji'
 import type { InventoryItem, InventoryItemCreate } from '../types'
 
 const UNITS = ['unidad','kg','g','L','ml','docena','caja','bolsa','lata','paquete']
@@ -35,15 +36,25 @@ function ExpiryBadge({ item }: { item: InventoryItem }) {
   if (days_remaining == null) return null
 
   const config = {
-    expired:  { color:'var(--danger)',  bg:'var(--danger-dim)',  text: 'Caducado' },
-    critical: { color:'var(--danger)',  bg:'var(--danger-dim)',  text: `${days_remaining}d` },
-    warning:  { color:'var(--warning)', bg:'var(--warning-dim)', text: `${days_remaining}d` },
-    ok:       { color:'var(--text-muted)', bg:'var(--surface-2)', text: `${days_remaining}d` },
-  }[expiry_status ?? 'ok'] ?? { color:'var(--text-muted)', bg:'var(--surface-2)', text:`${days_remaining}d` }
+    expired:  { color:'#FFFFFF', bg:'var(--danger)',  border:'var(--danger)',  text: 'Caducado', icon:'⚠️' },
+    critical: { color:'#FFFFFF', bg:'var(--danger)',  border:'var(--danger)',  text: `${days_remaining} día${days_remaining===1?'':'s'}`, icon:'⚠️' },
+    warning:  { color:'#1A1400', bg:'var(--warning)', border:'var(--warning)', text: `${days_remaining} días`, icon:'⏳' },
+    ok:       { color:'var(--primary)', bg:'var(--primary-dim)', border:'var(--primary)', text: `${days_remaining} días`, icon:'✓' },
+  }[expiry_status ?? 'ok'] ?? { color:'var(--text)', bg:'var(--surface-2)', border:'var(--border-subtle)', text:`${days_remaining} días`, icon:'' }
 
   return (
-    <div style={{ display:'flex', alignItems:'center', gap:'4px', padding:'3px 8px', background:config.bg, borderRadius:'100px', fontSize:'11px', fontWeight:600, color:config.color, whiteSpace:'nowrap' }}>
-      <Clock size={10}/>
+    <div style={{
+      display:'flex', alignItems:'center', gap:'5px',
+      padding:'5px 11px',
+      background: config.bg,
+      border: `1.5px solid ${config.border}`,
+      borderRadius:'100px',
+      fontSize:'13px', fontWeight:700,
+      color: config.color,
+      whiteSpace:'nowrap',
+      boxShadow: (expiry_status==='critical'||expiry_status==='expired') ? '0 0 12px rgba(255,107,107,0.35)' : undefined,
+    }}>
+      <span style={{ fontSize:'12px' }}>{config.icon}</span>
       {config.text}
     </div>
   )
@@ -272,15 +283,16 @@ export function InventoryPage() {
               ) : (
                 <Card style={{
                   display:'flex', alignItems:'center', gap:'12px',
-                  borderLeft:`3px solid ${item.expiry_status==='expired'?'var(--danger)':item.expiry_status==='critical'?'var(--danger)':item.expiry_status==='warning'?'var(--warning)':'var(--border-subtle)'}`,
+                  borderLeft:`4px solid ${item.expiry_status==='expired'?'var(--danger)':item.expiry_status==='critical'?'var(--danger)':item.expiry_status==='warning'?'var(--warning)':'var(--border-subtle)'}`,
+                  background: item.expiry_status==='expired'||item.expiry_status==='critical' ? 'rgba(255,107,107,0.06)' : item.expiry_status==='warning' ? 'rgba(245,184,65,0.05)' : 'var(--surface)',
                   transition:'all var(--transition)',
                 }}
                   onMouseEnter={(e:React.MouseEvent<HTMLDivElement>)=>e.currentTarget.style.transform='translateY(-1px)'}
                   onMouseLeave={(e:React.MouseEvent<HTMLDivElement>)=>e.currentTarget.style.transform=''}
                 >
                   {/* Icon */}
-                  <div style={{ width:'40px', height:'40px', borderRadius:'var(--radius-sm)', background:`${locationColor(item.storage_location)}15`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'18px', flexShrink:0 }}>
-                    {item.storage_location==='refrigerator'?'🧊':item.storage_location==='freezer'?'❄️':item.storage_location==='cabinet'?'🗄️':'🌿'}
+                  <div style={{ width:'44px', height:'44px', borderRadius:'var(--radius-sm)', background:`${locationColor(item.storage_location)}18`, border:`1px solid ${locationColor(item.storage_location)}30`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'24px', flexShrink:0 }}>
+                    {getFoodEmoji(item.food_name)}
                   </div>
 
                   {/* Info */}

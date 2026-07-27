@@ -13,6 +13,7 @@ import { SourceBadge } from '../components/ui/Badge'
 import { FreshlyDock } from '../components/layout/FloatingDock'
 import { useToast } from '../components/ui/Toast'
 import { purchasesApi } from '../lib/api'
+import { getFoodEmoji } from '../lib/foodEmoji'
 import type { Purchase, PurchaseItemCreate } from '../types'
 
 const UNITS = ['unidad', 'kg', 'g', 'L', 'ml', 'docena', 'caja', 'bolsa', 'lata', 'paquete']
@@ -256,7 +257,7 @@ function VoiceModal({ isOpen, onClose, onSaved }: { isOpen: boolean; onClose: ()
                   borderRadius: 'var(--radius-sm)',
                   border: '1px solid var(--primary-dim)',
                 }}>
-                  <span style={{ fontSize: '16px' }}>🌿</span>
+                  <span style={{ fontSize: '16px' }}>{getFoodEmoji(it.food_name)}</span>
                   <span style={{ flex: 1, fontSize: '14px' }}>{it.food_name}</span>
                   <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontFamily: 'IBM Plex Mono' }}>
                     {it.quantity} {it.unit}
@@ -365,7 +366,7 @@ function ReceiptModal({ isOpen, onClose, onSaved }: { isOpen: boolean; onClose: 
                   borderRadius: 'var(--radius-sm)',
                   border: '1px solid var(--warning-dim)',
                 }}>
-                  <span style={{ fontSize: '16px' }}>📦</span>
+                  <span style={{ fontSize: '16px' }}>{getFoodEmoji(it.food_name)}</span>
                   <span style={{ flex: 1, fontSize: '14px' }}>{it.food_name}</span>
                   <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontFamily: 'IBM Plex Mono' }}>
                     {it.quantity} {it.unit}
@@ -431,7 +432,9 @@ function PurchaseCard({ purchase, onDelete }: { purchase: Purchase; onDelete: ()
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '14px' }}>
             {purchase.items.map(item => (
               <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px', padding: '6px 0' }}>
-                <span style={{ color: 'var(--text)' }}>{item.food_name}</span>
+                <span style={{ color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>{getFoodEmoji(item.food_name)}</span> {item.food_name}
+                </span>
                 <div style={{ display: 'flex', gap: '16px', color: 'var(--text-secondary)' }}>
                   <span style={{ fontFamily: 'IBM Plex Mono' }}>{item.quantity} {item.unit}</span>
                   {item.price > 0 && <span style={{ color: 'var(--text)' }}>${item.price.toFixed(2)}</span>}

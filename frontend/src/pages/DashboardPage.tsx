@@ -13,6 +13,7 @@ import { Input } from '../components/ui/Input'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../components/ui/Toast'
 import { dashboardApi, inventoryApi, purchasesApi } from '../lib/api'
+import { getFoodEmoji } from '../lib/foodEmoji'
 import type { SpendingByDate, DashboardSummary, PurchaseItemCreate, InventoryItem } from '../types'
 
 
@@ -59,8 +60,8 @@ function getExpiryColor(daysRemaining: number | null | undefined) {
 }
 function getExpiryBg(daysRemaining: number | null | undefined) {
   if (daysRemaining === null || daysRemaining === undefined) return 'transparent'
-  if (daysRemaining <= 2) return 'rgba(255,107,107,0.10)'
-  if (daysRemaining <= 5) return 'rgba(245,184,65,0.10)'
+  if (daysRemaining <= 2) return 'rgba(255,107,107,0.14)'
+  if (daysRemaining <= 5) return 'rgba(245,184,65,0.14)'
   return 'transparent'
 }
 function getExpiryLabel(daysRemaining: number | null | undefined) {
@@ -334,22 +335,24 @@ function InventoryGrid({ items, loading }: { items: InventoryItem[], loading: bo
         const urgent = days !== null && days !== undefined && days <= 5
         return (
           <div key={item.id} style={{
-            background: `var(--surface)`,
-            border: `1px solid ${urgent ? color + '40' : 'var(--border-subtle)'}`,
+            background: bg && bg !== 'transparent' ? bg : 'var(--surface)',
+            border: `1.5px solid ${urgent ? color + '60' : 'var(--border-subtle)'}`,
             borderRadius:'var(--radius)',
             padding:'12px',
             position:'relative',
             overflow:'hidden',
             animation:`countUp 0.3s ease ${Math.min(i, 12)*0.04}s both`,
-            backgroundColor: bg || 'var(--surface)',
+            boxShadow: urgent ? `0 0 0 1px ${color}25, 0 4px 16px ${color}20` : undefined,
           }}>
             {urgent && (
-              <div style={{ position:'absolute', top:0, left:0, right:0, height:'2px', background:`linear-gradient(90deg, ${color}, transparent)` }}/>
+              <div style={{ position:'absolute', top:0, left:0, right:0, height:'3px', background:`linear-gradient(90deg, ${color}, ${color}00)` }}/>
             )}
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'6px' }}>
-              <span style={{ fontSize:'16px' }}>{getStorageIcon(item.storage_location)}</span>
+              <span style={{ fontSize:'22px', lineHeight:1 }} title={getStorageIcon(item.storage_location)}>
+                {getFoodEmoji(item.food_name)}
+              </span>
               {days !== null && days !== undefined && (
-                <span style={{ fontSize:'11px', fontWeight:700, color, background:`${color}18`, padding:'2px 6px', borderRadius:'100px', fontFamily:'IBM Plex Mono' }}>
+                <span style={{ fontSize:'12px', fontWeight:800, color: (days<=5) ? '#0B0F0E' : color, background: (days<=5) ? color : `${color}22`, border: `1.5px solid ${color}`, padding:'2px 8px', borderRadius:'100px', fontFamily:'IBM Plex Mono' }}>
                   {getExpiryLabel(days)}
                 </span>
               )}
@@ -358,16 +361,135 @@ function InventoryGrid({ items, loading }: { items: InventoryItem[], loading: bo
               {item.food_name}
             </div>
             <div style={{ fontSize:'11px', color:'var(--text-muted)', fontFamily:'IBM Plex Mono' }}>
-              {item.quantity} {item.unit}
+              {getStorageIcon(item.storage_location)} {item.quantity} {item.unit}
             </div>
             {days !== null && days !== undefined && days <= 2 && (
-              <div style={{ marginTop:'6px', fontSize:'10px', color, fontWeight:600 }}>
+              <div style={{ marginTop:'6px', fontSize:'10px', color, fontWeight:700 }}>
                 {days <= 0 ? '⚠️ Consumir ya' : '🔥 Consumir pronto'}
               </div>
             )}
           </div>
         )
       })}
+    </div>
+  )
+}
+
+// ── Inspiration section (paisajes + mensajes, estilo login) ─
+const inspirationPhotos = {
+  impact: 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?w=700&q=80',
+  fresh: 'https://images.unsplash.com/photo-1490818387583-1baba5e638af?w=700&q=80',
+  cook: 'https://images.unsplash.com/photo-1547592180-85f173990554?w=700&q=80',
+}
+
+function LandscapeCard({ photo, tag, tagColor, title, body, cta, onClick, delay }: {
+  photo: string; tag: string; tagColor: string; title: string; body: string
+  cta?: string; onClick?: () => void; delay: number
+}) {
+  const [hovered, setHovered] = useState(false)
+  return (
+    <div
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        position: 'relative', borderRadius: 'var(--radius-lg)', overflow: 'hidden',
+        height: '240px', cursor: onClick ? 'pointer' : 'default',
+        transform: hovered ? 'translateY(-4px)' : 'translateY(0)',
+        boxShadow: hovered ? `0 20px 40px rgba(0,0,0,0.45), 0 0 0 1px ${tagColor}35` : '0 6px 20px rgba(0,0,0,0.3)',
+        transition: 'all 0.4s cubic-bezier(0.4,0,0.2,1)',
+        animation: `fadeIn 0.5s ease ${delay}s both`,
+      }}
+    >
+      <div style={{
+        position: 'absolute', inset: 0,
+        backgroundImage: `url(${photo})`, backgroundSize: 'cover', backgroundPosition: 'center',
+        transform: hovered ? 'scale(1.06)' : 'scale(1)',
+        transition: 'transform 0.6s cubic-bezier(0.4,0,0.2,1)',
+        filter: 'brightness(0.4)',
+      }} />
+      <div style={{
+        position: 'absolute', inset: 0,
+        background: 'linear-gradient(to top, rgba(11,15,14,0.95) 0%, rgba(11,15,14,0.55) 55%, transparent 100%)',
+      }} />
+      <div style={{ position: 'relative', zIndex: 2, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', padding: '20px' }}>
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: '6px', width: 'fit-content',
+          padding: '4px 10px', borderRadius: '100px',
+          background: `${tagColor}22`, border: `1px solid ${tagColor}50`,
+          color: tagColor, fontSize: '11px', fontWeight: 700, marginBottom: '10px',
+        }}>
+          {tag}
+        </div>
+        <h4 style={{ fontSize: '17px', fontWeight: 700, color: '#fff', letterSpacing: '-0.02em', marginBottom: '6px', lineHeight: 1.25 }}>
+          {title}
+        </h4>
+        <p style={{ fontSize: '12.5px', color: 'rgba(255,255,255,0.75)', lineHeight: 1.5 }}>
+          {body}
+        </p>
+        {cta && (
+          <span style={{ marginTop: '10px', fontSize: '12px', fontWeight: 600, color: tagColor, display: 'flex', alignItems: 'center', gap: '4px' }}>
+            {cta} <ChevronRight size={13} />
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function InspirationSection({ summary }: { summary: DashboardSummary | null }) {
+  const navigate = useNavigate()
+  const weekComparison = summary?.week_comparison
+  const savedMoney = weekComparison && weekComparison.percentage < 0
+  const expiringCount = summary?.expiring_soon?.length ?? 0
+
+  return (
+    <div>
+      <div style={{ marginBottom: '14px' }}>
+        <h3 style={{ fontSize: '16px', fontWeight: 700, letterSpacing: '-0.02em', marginBottom: '2px' }}>
+          🌿 Un vistazo a tu progreso
+        </h3>
+        <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+          Pequeños hábitos, grandes cambios
+        </p>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px' }}>
+        <LandscapeCard
+          photo={inspirationPhotos.impact}
+          tag="🌍 Tu impacto"
+          tagColor="#3ED598"
+          title={savedMoney ? `¡Ahorraste ${Math.abs(weekComparison!.percentage).toFixed(0)}% esta semana!` : 'Cada compra que registras cuenta'}
+          body={savedMoney
+            ? 'Gastar menos también significa desperdiciar menos. Sigue así y el planeta (y tu bolsillo) lo agradecen.'
+            : 'Saber exactamente qué tienes en casa es el primer paso para dejar de desperdiciar comida. Vas por buen camino.'}
+          delay={0}
+        />
+
+        <LandscapeCard
+          photo={inspirationPhotos.fresh}
+          tag={expiringCount > 0 ? '⏳ Atención' : '✨ Todo fresco'}
+          tagColor={expiringCount > 0 ? '#F5B841' : '#3ED598'}
+          title={expiringCount > 0 ? `Tienes ${expiringCount} alimento${expiringCount===1?'':'s'} por vencer` : 'Tu despensa está al día'}
+          body={expiringCount > 0
+            ? 'Un poco de planificación evita que termine en la basura. Revisa tu inventario y dale prioridad a esos alimentos.'
+            : 'No hay nada urgente por consumir ahora mismo. Buen trabajo manteniendo tu inventario bajo control.'}
+          cta="Ver inventario"
+          onClick={() => navigate('/inventory')}
+          delay={0.1}
+        />
+
+        <LandscapeCard
+          photo={inspirationPhotos.cook}
+          tag="👩‍🍳 Cocina con lo que tienes"
+          tagColor="#6495ED"
+          title="¿No sabes qué cocinar hoy?"
+          body="Freshly puede sugerirte recetas usando lo que ya está en tu despensa, priorizando lo que se vence primero."
+          cta="Ver recetas sugeridas"
+          onClick={() => navigate('/recipes')}
+          delay={0.2}
+        />
+      </div>
     </div>
   )
 }
@@ -642,6 +764,8 @@ export function DashboardPage() {
             )}
           </Card>
         </div>
+
+        <InspirationSection summary={summary} />
       </div>
 
       <ManualModal isOpen={manualOpen} onClose={()=>setManualOpen(false)} onSaved={refreshAll}/>
