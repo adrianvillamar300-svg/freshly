@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, Package, Edit2, Trash2, Check, X, Minus, Plus, Camera, Upload, Loader } from 'lucide-react'
-import { formatDistanceToNow, format } from 'date-fns'
+import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
@@ -486,66 +486,55 @@ export function InventoryPage() {
                 </Card>
               ) : (
                 <Card style={{
-                  display:'flex', alignItems:'center', gap:'12px',
                   borderLeft:`4px solid ${item.expiry_status==='expired'?'var(--danger)':item.expiry_status==='critical'?'var(--danger)':item.expiry_status==='warning'?'var(--warning)':'var(--border-subtle)'}`,
                   background: item.expiry_status==='expired'||item.expiry_status==='critical' ? 'rgba(255,107,107,0.06)' : item.expiry_status==='warning' ? 'rgba(245,184,65,0.05)' : 'var(--surface)',
                   transition:'all var(--transition)',
+                  padding: '10px 12px',
                 }}
                   onMouseEnter={(e:React.MouseEvent<HTMLDivElement>)=>e.currentTarget.style.transform='translateY(-1px)'}
                   onMouseLeave={(e:React.MouseEvent<HTMLDivElement>)=>e.currentTarget.style.transform=''}
                 >
-                  {/* Icon */}
-                  <div style={{ width:'44px', height:'44px', borderRadius:'var(--radius-sm)', background:`${locationColor(item.storage_location)}18`, border:`1px solid ${locationColor(item.storage_location)}30`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'24px', flexShrink:0 }}>
-                    {getFoodEmoji(item.food_name)}
-                  </div>
-
-                  {/* Info */}
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:'14px', fontWeight:500, color:'var(--text)', marginBottom:'3px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                      {item.food_name}
+                  {/* Fila 1: emoji + nombre + actions */}
+                  <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+                    {/* Emoji */}
+                    <div style={{ width:'38px', height:'38px', borderRadius:'var(--radius-sm)', background:`${locationColor(item.storage_location)}18`, border:`1px solid ${locationColor(item.storage_location)}30`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'20px', flexShrink:0 }}>
+                      {getFoodEmoji(item.food_name)}
                     </div>
-                    <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
-                      <span style={{ fontSize:'11px', color:'var(--text-muted)' }}>
+
+                    {/* Nombre */}
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:'14px', fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                        {item.food_name}
+                      </div>
+                      <div style={{ fontSize:'11px', color:'var(--text-muted)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                         {locationLabel(item.storage_location)}
-                      </span>
-                      {item.added_at && (
-                        <span style={{ fontSize:'11px', color:'var(--text-muted)' }}>
-                          · {formatDistanceToNow(new Date(item.added_at),{addSuffix:true,locale:es})}
-                        </span>
-                      )}
-                      {item.expires_at && (
-                        <span style={{ fontSize:'11px', color:'var(--text-muted)' }}>
-                          · caduca {format(new Date(item.expires_at),"d MMM",{locale:es})}
-                        </span>
-                      )}
+                        {item.expires_at && ` · caduca ${format(new Date(item.expires_at),"d MMM",{locale:es})}`}
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div style={{ display:'flex', gap:'2px', flexShrink:0 }}>
+                      <button onClick={()=>setConsumeItem(item)} title="Registrar consumo" style={{ width:'30px', height:'30px', display:'flex', alignItems:'center', justifyContent:'center', borderRadius:'7px', color:'var(--text-secondary)', cursor:'pointer', transition:'all var(--transition)', background:'none', border:'none' }}
+                        onMouseEnter={e=>{e.currentTarget.style.background='var(--primary-dim)';e.currentTarget.style.color='var(--primary)'}}
+                        onMouseLeave={e=>{e.currentTarget.style.background='';e.currentTarget.style.color='var(--text-secondary)'}}
+                      ><Minus size={13}/></button>
+                      <button onClick={()=>setEditId(item.id)} title="Editar" style={{ width:'30px', height:'30px', display:'flex', alignItems:'center', justifyContent:'center', borderRadius:'7px', color:'var(--text-secondary)', cursor:'pointer', transition:'all var(--transition)', background:'none', border:'none' }}
+                        onMouseEnter={e=>{e.currentTarget.style.background='var(--surface-2)';e.currentTarget.style.color='var(--text)'}}
+                        onMouseLeave={e=>{e.currentTarget.style.background='';e.currentTarget.style.color='var(--text-secondary)'}}
+                      ><Edit2 size={13}/></button>
+                      <button onClick={()=>setDeleteId(item.id)} title="Eliminar" style={{ width:'30px', height:'30px', display:'flex', alignItems:'center', justifyContent:'center', borderRadius:'7px', color:'var(--text-secondary)', cursor:'pointer', transition:'all var(--transition)', background:'none', border:'none' }}
+                        onMouseEnter={e=>{e.currentTarget.style.background='var(--danger-dim)';e.currentTarget.style.color='var(--danger)'}}
+                        onMouseLeave={e=>{e.currentTarget.style.background='';e.currentTarget.style.color='var(--text-secondary)'}}
+                      ><Trash2 size={13}/></button>
                     </div>
                   </div>
 
-                  {/* Expiry + quantity */}
-                  <div style={{ display:'flex', alignItems:'center', gap:'8px', flexShrink:0, flexWrap:'wrap', justifyContent:'flex-end' }}>
-                    <ExpiryBadge item={item}/>
-                    <div style={{ padding:'4px 10px', background:'var(--surface-2)', borderRadius:'100px', fontSize:'12px', fontWeight:600, color:'var(--text)', fontFamily:'IBM Plex Mono', whiteSpace:'nowrap' }}>
+                  {/* Fila 2: cantidad + badge caducidad */}
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:'8px', paddingLeft:'48px' }}>
+                    <div style={{ padding:'3px 10px', background:'var(--surface-2)', borderRadius:'100px', fontSize:'12px', fontWeight:600, color:'var(--text)', fontFamily:'IBM Plex Mono', whiteSpace:'nowrap' }}>
                       {item.quantity} {item.unit}
                     </div>
-                  </div>
-
-                  {/* Actions */}
-                  <div style={{ display:'flex', gap:'2px', flexShrink:0 }}>
-                    {/* Consume */}
-                    <button onClick={()=>setConsumeItem(item)} title="Registrar consumo" style={{ width:'30px', height:'30px', display:'flex', alignItems:'center', justifyContent:'center', borderRadius:'7px', color:'var(--text-secondary)', cursor:'pointer', transition:'all var(--transition)' }}
-                      onMouseEnter={e=>{e.currentTarget.style.background='var(--primary-dim)';e.currentTarget.style.color='var(--primary)'}}
-                      onMouseLeave={e=>{e.currentTarget.style.background='';e.currentTarget.style.color='var(--text-secondary)'}}
-                    ><Minus size={13}/></button>
-                    {/* Edit */}
-                    <button onClick={()=>setEditId(item.id)} title="Editar" style={{ width:'30px', height:'30px', display:'flex', alignItems:'center', justifyContent:'center', borderRadius:'7px', color:'var(--text-secondary)', cursor:'pointer', transition:'all var(--transition)' }}
-                      onMouseEnter={e=>{e.currentTarget.style.background='var(--surface-2)';e.currentTarget.style.color='var(--text)'}}
-                      onMouseLeave={e=>{e.currentTarget.style.background='';e.currentTarget.style.color='var(--text-secondary)'}}
-                    ><Edit2 size={13}/></button>
-                    {/* Delete */}
-                    <button onClick={()=>setDeleteId(item.id)} title="Eliminar" style={{ width:'30px', height:'30px', display:'flex', alignItems:'center', justifyContent:'center', borderRadius:'7px', color:'var(--text-secondary)', cursor:'pointer', transition:'all var(--transition)' }}
-                      onMouseEnter={e=>{e.currentTarget.style.background='var(--danger-dim)';e.currentTarget.style.color='var(--danger)'}}
-                      onMouseLeave={e=>{e.currentTarget.style.background='';e.currentTarget.style.color='var(--text-secondary)'}}
-                    ><Trash2 size={13}/></button>
+                    <ExpiryBadge item={item}/>
                   </div>
                 </Card>
               )}

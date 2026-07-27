@@ -125,6 +125,7 @@ function VoiceModal({ isOpen, onClose, onSaved }: { isOpen: boolean; onClose: ()
   const [saving, setSaving] = useState(false)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
+  const requestDataIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const [debugMsg, setDebugMsg] = useState('')
 
@@ -138,11 +139,13 @@ function VoiceModal({ isOpen, onClose, onSaved }: { isOpen: boolean; onClose: ()
     }
     setLoading(true)
     try {
-      const ext = mimeType.includes('ogg') ? 'ogg' : mimeType.includes('mp4') ? 'mp4' : 'webm'
+      // Elegir extensión según mimeType real del blob
+      const ext = mimeType.includes('ogg') ? 'ogg' : mimeType.includes('mp4') || mimeType.includes('m4a') ? 'mp4' : 'webm'
+      const filename = `audio.${ext}`
       const formData = new FormData()
-      formData.append('file', blob, `audio.${ext}`)
+      formData.append('file', blob, filename)
       const token = localStorage.getItem('freshly_token')
-      setDebugMsg(`Enviando al servidor... token: ${token ? 'ok' : 'NULL'}`)
+      setDebugMsg(`Enviando ${filename}... token: ${token ? 'ok' : 'NULL'}`)
       const res = await fetch('/api/purchases/transcribe-audio', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
@@ -164,19 +167,29 @@ function VoiceModal({ isOpen, onClose, onSaved }: { isOpen: boolean; onClose: ()
     setDebugMsg('')
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      // Detectar mejor formato soportado
-      const mimeType = ['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/ogg','audio/mp4']
-        .find(t => MediaRecorder.isTypeSupported(t)) || ''
+      // iOS Safari solo soporta audio/mp4; priorizarlo antes de webm
+      const mimeType = [
+        'audio/mp4',
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/ogg;codecs=opus',
+        'audio/ogg',
+      ].find(t => MediaRecorder.isTypeSupported(t)) || ''
       setDebugMsg(`Formato: ${mimeType || 'default'}`)
       const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
       chunksRef.current = []
-      // onstop ANTES de start para garantizar que se dispara
+      mr.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunksRef.current.push(e.data) }
       mr.onstop = () => {
+        // Limpiar interval si existe
+        if (requestDataIntervalRef.current) { clearInterval(requestDataIntervalRef.current); requestDataIntervalRef.current = null }
         stream.getTracks().forEach(t => t.stop())
         sendAudio(chunksRef.current, mr.mimeType)
       }
-      mr.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
-      mr.start(500)
+      mr.start() // Sin timeslice para mayor compatibilidad iOS
+      // iOS a veces no dispara ondataavailable hasta el stop — forzar requestData cada 500ms
+      requestDataIntervalRef.current = setInterval(() => {
+        if (mr.state === 'recording') mr.requestData()
+      }, 500)
       mediaRecorderRef.current = mr
       setRecording(true)
     } catch (e: unknown) {
