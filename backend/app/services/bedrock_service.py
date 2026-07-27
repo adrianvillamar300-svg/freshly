@@ -96,3 +96,22 @@ def call_claude_vision(
     except Exception as e:
         logger.error(f"ERROR OpenRouter visión: {type(e).__name__}: {e}")
         raise
+
+
+def transcribe_audio(audio_bytes: bytes, filename: str = "audio.webm") -> str:
+    """Transcribe audio con Groq Whisper (gratis, funciona en cualquier navegador)."""
+    try:
+        client = _get_groq()
+        logger.info(f"Groq Whisper transcribiendo {len(audio_bytes)} bytes")
+        transcription = client.audio.transcriptions.create(
+            model="whisper-large-v3",
+            file=(filename, audio_bytes),
+            language="es",
+            response_format="text",
+        )
+        result = transcription if isinstance(transcription, str) else transcription.text
+        logger.info(f"Groq Whisper OK: '{result[:80]}'")
+        return result
+    except Exception as e:
+        logger.error(f"ERROR Groq Whisper: {type(e).__name__}: {e}")
+        raise

@@ -123,73 +123,56 @@ function VoiceModal({ isOpen, onClose, onSaved }: { isOpen: boolean; onClose: ()
   const [preview, setPreview] = useState<PurchaseItemCreate[]>([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
-  const recognitionRef = useRef<SpeechRecognition | null>(null)
-  const isRecordingRef = useRef(false)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const chunksRef = useRef<Blob[]>([])
 
-  const SpeechRecognitionAPI = (
-    (window as unknown as Record<string, unknown>).SpeechRecognition ||
-    (window as unknown as Record<string, unknown>).webkitSpeechRecognition
-  ) as SpeechRecognitionConstructor | undefined
-
-  const createAndStart = () => {
-    if (!SpeechRecognitionAPI) return
-
-    const r = new SpeechRecognitionAPI()
-    r.lang = navigator.language?.startsWith('es') ? navigator.language : 'es-ES'
-    r.continuous = true
-    r.interimResults = true
-
-    r.onresult = (e: SpeechRecognitionEvent) => {
-      const t = Array.from(e.results).map(r => r[0].transcript).join(' ')
-      setTranscript(t)
-    }
-
-    r.onerror = (e: Event) => {
-      const err = (e as unknown as { error: string }).error
-      // aborted y no-speech no son errores reales — onend se encargará de reiniciar
-      if (err === 'aborted' || err === 'no-speech') return
-      if (err === 'not-allowed' || err === 'service-not-allowed') {
-        toast('Permiso de micrófono denegado. Habilítalo en la configuración del navegador.', 'error')
-      } else if (err === 'network') {
-        toast('Error de red. Verifica tu conexión a internet.', 'error')
-      } else if (err === 'audio-capture') {
-        toast('No se detectó micrófono. Verifica que esté conectado y habilitado.', 'error')
-      } else {
-        toast(`Error de reconocimiento: ${err || 'desconocido'}`, 'error')
-      }
-      isRecordingRef.current = false
-      setRecording(false)
-    }
-
-    r.onend = () => {
-      // La API para sola tras silencio en móvil — crear instancia nueva y reiniciar
-      if (isRecordingRef.current) {
-        setTimeout(() => { if (isRecordingRef.current) createAndStart() }, 150)
-      }
-    }
-
-    r.start()
-    recognitionRef.current = r
-  }
-
-  const startRec = () => {
-    if (!SpeechRecognitionAPI) {
-      toast('Tu navegador no soporta reconocimiento de voz. Usa Chrome.', 'error')
-      return
-    }
+  const startRec = async () => {
     try {
-      isRecordingRef.current = true
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm')
+        ? 'audio/webm'
+        : 'audio/ogg'
+      const mr = new MediaRecorder(stream, { mimeType })
+      chunksRef.current = []
+      mr.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+      mr.start(250)
+      mediaRecorderRef.current = mr
       setRecording(true)
-      createAndStart()
     } catch {
-      toast('No se pudo iniciar el micrófono. Intenta recargar la página.', 'error')
+      toast('No se pudo acceder al micrófono. Verifica los permisos.', 'error')
     }
   }
 
   const stopRec = () => {
-    isRecordingRef.current = false
-    recognitionRef.current?.stop()
-    setRecording(false)
+    const mr = mediaRecorderRef.current
+    if (!mr) return
+    mr.onstop = async () => {
+      // Detener tracks del stream para liberar el micrófono
+      mr.stream.getTracks().forEach(t => t.stop())
+      const blob = new Blob(chunksRef.current, { type: mr.mimeType })
+      if (blob.size < 1000) { toast('Audio muy corto, intenta de nuevo.', 'error'); setRecording(false); return }
+      setLoading(true)
+      setRecording(false)
+      try {
+        const ext = mr.mimeType.includes('ogg') ? 'ogg' : 'webm'
+        const formData = new FormData()
+        formData.append('file', blob, `audio.${ext}`)
+        const token = localStorage.getItem('token')
+        const res = await fetch('/api/purchases/transcribe-audio', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        })
+        if (!res.ok) { const d = await res.json(); throw new Error(d.detail || 'Error') }
+        const { text } = await res.json()
+        setTranscript(text)
+      } catch (e: unknown) {
+        toast(e instanceof Error ? e.message : 'Error al transcribir', 'error')
+      } finally { setLoading(false) }
+    }
+    mr.stop()
   }
 
   const parse = async () => {
@@ -220,6 +203,7 @@ function VoiceModal({ isOpen, onClose, onSaved }: { isOpen: boolean; onClose: ()
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '20px 0' }}>
           <button
             onClick={recording ? stopRec : startRec}
+            disabled={loading}
             style={{
               width: '80px', height: '80px', borderRadius: '50%',
               background: recording ? 'var(--danger-dim)' : 'var(--primary-dim)',
@@ -234,7 +218,7 @@ function VoiceModal({ isOpen, onClose, onSaved }: { isOpen: boolean; onClose: ()
             {recording ? <MicOff size={28} /> : <Mic size={28} />}
           </button>
           <p style={{ fontSize: '13px', color: 'var(--text-secondary)', textAlign: 'center' }}>
-            {recording ? '🔴 Grabando... toca para detener' : 'Toca para grabar'}
+            {loading ? '⏳ Transcribiendo...' : recording ? '🔴 Grabando... toca para detener' : 'Toca para grabar'}
           </p>
         </div>
 

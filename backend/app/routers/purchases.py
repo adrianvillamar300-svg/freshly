@@ -98,6 +98,25 @@ def parse_voice_purchase(
     return schemas.ParsedPurchasePreview(items=parsed_items)
 
 
+@router.post("/transcribe-audio", response_model=schemas.VoiceTextInput)
+async def transcribe_audio(
+    file: UploadFile = File(...),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    """Recibe un audio grabado desde el navegador y lo transcribe con Groq Whisper."""
+    from app.services.bedrock_service import transcribe_audio as do_transcribe
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="El archivo de audio está vacío.")
+    try:
+        text = do_transcribe(content, file.filename or "audio.webm")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al transcribir: {str(e)}")
+    if not text or not text.strip():
+        raise HTTPException(status_code=422, detail="No se detectó voz en el audio.")
+    return schemas.VoiceTextInput(text=text.strip())
+
+
 @router.get("", response_model=List[schemas.PurchaseOut])
 def list_purchases(
     date_from: Optional[datetime] = None,
