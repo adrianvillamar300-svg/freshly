@@ -117,7 +117,7 @@ export function FloatingDock({ actions }: FloatingDockProps) {
           borderRadius: '50%',
           background: isOpen
             ? 'var(--surface)'
-            : 'var(--primary)',
+            : '#6495ED',
           border: isOpen
             ? '1px solid var(--border-subtle)'
             : 'none',
