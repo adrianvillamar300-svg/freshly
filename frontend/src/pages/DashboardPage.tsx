@@ -1151,6 +1151,376 @@ function InspirationSection({ summary }: { summary: DashboardSummary | null }) {
   )
 }
 
+// ── DAILY QUIZ SYSTEM ──────────────────────────────────────
+
+const QUIZ_STORAGE_KEY = 'freshly_quiz'
+const POINTS_STORAGE_KEY = 'freshly_points'
+
+interface QuizState {
+  lastPlayedDate: string | null   // 'YYYY-MM-DD'
+  streak: number
+  totalPoints: number
+  lastScore: number | null        // 0-5
+  todayCompleted: boolean
+}
+
+interface QuizQuestion {
+  question: string
+  options: string[]
+  correct: number  // index
+  explanation: string
+}
+
+function getTodayStr() {
+  return new Date().toISOString().split('T')[0]
+}
+
+function loadQuizState(): QuizState {
+  try {
+    const raw = localStorage.getItem(QUIZ_STORAGE_KEY)
+    if (raw) return JSON.parse(raw)
+  } catch {}
+  return { lastPlayedDate: null, streak: 0, totalPoints: 0, lastScore: null, todayCompleted: false }
+}
+
+function saveQuizState(state: QuizState) {
+  localStorage.setItem(QUIZ_STORAGE_KEY, JSON.stringify(state))
+}
+
+// ─ Badge tier based on total points ─
+function getBadge(points: number) {
+  if (points >= 500) return { label: 'Maestro Verde', emoji: '🏆', color: '#F5B841' }
+  if (points >= 200) return { label: 'Nutricionista', emoji: '🥗', color: '#3ED598' }
+  if (points >= 80)  return { label: 'Aprendiz Sano', emoji: '🌿', color: '#6495ED' }
+  return { label: 'Semilla', emoji: '🌱', color: '#89CFF0' }
+}
+
+// ─ Quiz modal ─
+function DailyQuizModal({ onClose, onFinished }: { onClose: () => void; onFinished: (score: number, earned: number) => void }) {
+  const [phase, setPhase] = useState<'loading'|'playing'|'result'>('loading')
+  const [questions, setQuestions] = useState<QuizQuestion[]>([])
+  const [current, setCurrent] = useState(0)
+  const [selected, setSelected] = useState<number|null>(null)
+  const [answers, setAnswers] = useState<boolean[]>([])
+  const [showExplain, setShowExplain] = useState(false)
+  const [error, setError] = useState<string|null>(null)
+
+  useEffect(() => {
+    generateQuestions()
+  }, [])
+
+  const generateQuestions = async () => {
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 1000,
+          messages: [{
+            role: 'user',
+            content: `Genera 5 preguntas de opción múltiple sobre nutrición, frutas, verduras, alimentación saludable y reducción de desperdicio alimentario. 
+Las preguntas deben ser interesantes, educativas y variadas. Responde SOLO con un JSON válido, sin texto extra:
+{"questions":[{"question":"texto de la pregunta","options":["opción A","opción B","opción C","opción D"],"correct":0,"explanation":"explicación breve y útil en 1-2 oraciones"}]}`
+          }]
+        })
+      })
+      const data = await response.json()
+      const text = data.content?.[0]?.text ?? ''
+      const clean = text.replace(/```json|```/g, '').trim()
+      const parsed = JSON.parse(clean)
+      setQuestions(parsed.questions ?? [])
+      setPhase('playing')
+    } catch {
+      setError('No se pudo cargar el quiz. Intenta de nuevo.')
+      setPhase('playing')
+    }
+  }
+
+  const handleSelect = (idx: number) => {
+    if (selected !== null) return
+    setSelected(idx)
+    setShowExplain(true)
+    setAnswers(prev => [...prev, idx === questions[current].correct])
+  }
+
+  const handleNext = () => {
+    if (current + 1 >= questions.length) {
+      setPhase('result')
+    } else {
+      setCurrent(c => c + 1)
+      setSelected(null)
+      setShowExplain(false)
+    }
+  }
+
+  const score = answers.filter(Boolean).length
+  const earned = score * 10 + (score === questions.length ? 20 : 0) // bonus si aciertas todo
+
+  const q = questions[current]
+
+  const optionColors = (idx: number) => {
+    if (selected === null) return { bg: 'var(--surface-2)', border: 'var(--border-subtle)', color: 'var(--text)' }
+    if (idx === q.correct) return { bg: 'rgba(62,213,152,0.12)', border: 'rgba(62,213,152,0.5)', color: 'var(--primary)' }
+    if (idx === selected && idx !== q.correct) return { bg: 'rgba(255,107,107,0.1)', border: 'rgba(255,107,107,0.4)', color: 'var(--danger)' }
+    return { bg: 'var(--surface-2)', border: 'var(--border-subtle)', color: 'var(--text-muted)' }
+  }
+
+  return (
+    <Modal isOpen onClose={onClose} title="🎯 Reto Diario" size="md">
+      {phase === 'loading' && (
+        <div style={{ textAlign:'center', padding:'40px 0' }}>
+          <div style={{ fontSize:'36px', marginBottom:'12px', animation:'bounce 0.8s infinite alternate' }}>🧠</div>
+          <Loader size={20} style={{ animation:'spin 1s linear infinite', color:'var(--primary)', marginBottom:'8px' }} />
+          <p style={{ fontSize:'13px', color:'var(--text-secondary)' }}>Preparando tus preguntas con IA…</p>
+        </div>
+      )}
+
+      {phase === 'playing' && error && (
+        <div style={{ textAlign:'center', padding:'24px 0' }}>
+          <p style={{ color:'var(--danger)', marginBottom:'16px' }}>{error}</p>
+          <Button onClick={onClose}>Cerrar</Button>
+        </div>
+      )}
+
+      {phase === 'playing' && !error && questions.length > 0 && (
+        <div style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
+          {/* Progress */}
+          <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+            <div style={{ flex:1, height:'6px', background:'var(--surface-2)', borderRadius:'100px', overflow:'hidden' }}>
+              <div style={{ width:`${((current)/questions.length)*100}%`, height:'100%', background:'var(--primary)', borderRadius:'100px', transition:'width 0.4s ease' }}/>
+            </div>
+            <span style={{ fontSize:'11px', color:'var(--text-muted)', whiteSpace:'nowrap' }}>{current+1} / {questions.length}</span>
+          </div>
+
+          {/* Question */}
+          <div style={{ background:'var(--surface-2)', borderRadius:'var(--radius)', padding:'16px' }}>
+            <p style={{ fontSize:'15px', fontWeight:600, color:'var(--text)', lineHeight:1.5, margin:0 }}>{q.question}</p>
+          </div>
+
+          {/* Options */}
+          <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+            {q.options.map((opt, idx) => {
+              const c = optionColors(idx)
+              return (
+                <button key={idx} onClick={() => handleSelect(idx)} style={{
+                  padding:'12px 16px', background:c.bg, border:`1px solid ${c.border}`,
+                  borderRadius:'var(--radius-sm)', cursor: selected !== null ? 'default' : 'pointer',
+                  textAlign:'left', fontSize:'13px', color:c.color, fontWeight:selected!==null&&idx===q.correct?600:400,
+                  transition:'all 0.2s', display:'flex', alignItems:'center', gap:'10px'
+                }}>
+                  <span style={{ width:'22px', height:'22px', borderRadius:'50%', background: selected===null?'var(--surface-3)':idx===q.correct?'rgba(62,213,152,0.2)':idx===selected?'rgba(255,107,107,0.15)':'var(--surface-3)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'11px', fontWeight:700, flexShrink:0, color:'inherit' }}>
+                    {['A','B','C','D'][idx]}
+                  </span>
+                  {opt}
+                  {selected !== null && idx === q.correct && <span style={{ marginLeft:'auto' }}>✅</span>}
+                  {selected !== null && idx === selected && idx !== q.correct && <span style={{ marginLeft:'auto' }}>❌</span>}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Explanation */}
+          {showExplain && (
+            <div style={{ padding:'12px 14px', background:'rgba(100,149,237,0.08)', border:'1px solid rgba(100,149,237,0.2)', borderRadius:'var(--radius-sm)', animation:'slideDown 0.2s ease' }}>
+              <span style={{ fontSize:'11px', fontWeight:700, color:'#6495ED', textTransform:'uppercase', letterSpacing:'0.05em' }}>💡 ¿Sabías que?</span>
+              <p style={{ fontSize:'12.5px', color:'var(--text-secondary)', margin:'4px 0 0', lineHeight:1.5 }}>{q.explanation}</p>
+            </div>
+          )}
+
+          {selected !== null && (
+            <Button onClick={handleNext} style={{ alignSelf:'flex-end' }}>
+              {current + 1 >= questions.length ? '📊 Ver resultado' : 'Siguiente →'}
+            </Button>
+          )}
+        </div>
+      )}
+
+      {phase === 'result' && (
+        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'20px', padding:'8px 0' }}>
+          <div style={{ fontSize:'52px', animation:'bounce 0.6s ease' }}>
+            {score === 5 ? '🏆' : score >= 3 ? '🌟' : score >= 2 ? '💪' : '🌱'}
+          </div>
+          <div style={{ textAlign:'center' }}>
+            <p style={{ fontSize:'28px', fontWeight:800, color:'var(--primary)', fontFamily:'Space Grotesk', margin:0 }}>{score}/5</p>
+            <p style={{ fontSize:'14px', color:'var(--text-secondary)', marginTop:'4px' }}>
+              {score === 5 ? '¡Perfecto! Eres un experto en nutrición 🎉' : score >= 3 ? '¡Muy bien! Sigue aprendiendo 💚' : '¡Buen intento! Vuelve mañana para mejorar 🌿'}
+            </p>
+          </div>
+          <div style={{ display:'flex', gap:'12px', width:'100%' }}>
+            <div style={{ flex:1, textAlign:'center', padding:'14px', background:'var(--primary-dim)', border:'1px solid rgba(62,213,152,0.2)', borderRadius:'var(--radius-sm)' }}>
+              <div style={{ fontSize:'22px', fontWeight:800, color:'var(--primary)' }}>+{earned}</div>
+              <div style={{ fontSize:'11px', color:'var(--text-muted)', marginTop:'2px' }}>puntos ganados</div>
+            </div>
+            <div style={{ flex:1, textAlign:'center', padding:'14px', background:'var(--surface-2)', borderRadius:'var(--radius-sm)' }}>
+              <div style={{ fontSize:'22px', fontWeight:800, color:'var(--text)' }}>{score === 5 ? '🔥+1' : '—'}</div>
+              <div style={{ fontSize:'11px', color:'var(--text-muted)', marginTop:'2px' }}>{score === 5 ? 'racha' : 'racha no suma'}</div>
+            </div>
+          </div>
+          <p style={{ fontSize:'12px', color:'var(--text-muted)', textAlign:'center' }}>Vuelve mañana para el siguiente reto diario</p>
+          <Button onClick={() => onFinished(score, earned)} style={{ width:'100%' }}>¡Listo! Ver mis puntos</Button>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes bounce { 0%{transform:scale(1)} 100%{transform:scale(1.15)} }
+        @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+        @keyframes slideDown { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
+      `}</style>
+    </Modal>
+  )
+}
+
+// ─ Rewards modal ─
+function RewardsModal({ onClose, state }: { onClose: () => void; state: QuizState }) {
+  const badge = getBadge(state.totalPoints)
+  const rewards = [
+    { points: 80,  label: '🌿 Aprendiz Sano',    desc: 'Completa 8 quizzes',     done: state.totalPoints >= 80 },
+    { points: 200, label: '🥗 Nutricionista',     desc: '20 quizzes completados', done: state.totalPoints >= 200 },
+    { points: 500, label: '🏆 Maestro Verde',     desc: '50 quizzes completados', done: state.totalPoints >= 500 },
+  ]
+  const next = rewards.find(r => !r.done)
+  const pctToNext = next ? Math.min(100, (state.totalPoints / next.points) * 100) : 100
+
+  return (
+    <Modal isOpen onClose={onClose} title="🎖️ Mis logros" size="md">
+      <div style={{ display:'flex', flexDirection:'column', gap:'20px' }}>
+        {/* Current badge */}
+        <div style={{ textAlign:'center', padding:'20px', background:'var(--surface-2)', borderRadius:'var(--radius)', border:`1px solid ${badge.color}30` }}>
+          <div style={{ fontSize:'48px', marginBottom:'8px' }}>{badge.emoji}</div>
+          <p style={{ fontSize:'18px', fontWeight:700, color:badge.color, margin:0 }}>{badge.label}</p>
+          <p style={{ fontSize:'13px', color:'var(--text-secondary)', marginTop:'4px' }}>{state.totalPoints} puntos totales · {state.streak} 🔥 racha</p>
+        </div>
+
+        {/* Progress to next */}
+        {next && (
+          <div>
+            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'8px' }}>
+              <span style={{ fontSize:'12px', color:'var(--text-secondary)' }}>Próximo logro: {next.label}</span>
+              <span style={{ fontSize:'12px', color:'var(--primary)', fontFamily:'IBM Plex Mono' }}>{state.totalPoints}/{next.points}</span>
+            </div>
+            <div style={{ height:'8px', background:'var(--surface-2)', borderRadius:'100px', overflow:'hidden' }}>
+              <div style={{ width:`${pctToNext}%`, height:'100%', background:'var(--primary)', borderRadius:'100px', transition:'width 0.8s ease' }}/>
+            </div>
+            <p style={{ fontSize:'11px', color:'var(--text-muted)', marginTop:'6px' }}>{next.desc}</p>
+          </div>
+        )}
+
+        {/* All rewards */}
+        <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+          {rewards.map(r => (
+            <div key={r.points} style={{ display:'flex', alignItems:'center', gap:'12px', padding:'12px 14px', background: r.done ? 'rgba(62,213,152,0.06)' : 'var(--surface-2)', border:`1px solid ${r.done?'rgba(62,213,152,0.25)':'var(--border-subtle)'}`, borderRadius:'var(--radius-sm)', opacity: r.done ? 1 : 0.6 }}>
+              <span style={{ fontSize:'22px' }}>{r.label.split(' ')[0]}</span>
+              <div style={{ flex:1 }}>
+                <p style={{ fontSize:'13px', fontWeight:600, color: r.done ? 'var(--text)' : 'var(--text-muted)', margin:0 }}>{r.label.split(' ').slice(1).join(' ')}</p>
+                <p style={{ fontSize:'11px', color:'var(--text-muted)', margin:0 }}>{r.points} puntos · {r.desc}</p>
+              </div>
+              {r.done && <span style={{ color:'var(--primary)', fontSize:'16px' }}>✓</span>}
+            </div>
+          ))}
+        </div>
+
+        <Button variant="ghost" onClick={onClose} style={{ alignSelf:'center' }}>Cerrar</Button>
+      </div>
+    </Modal>
+  )
+}
+
+// ─ Dashboard quiz card ─
+function DailyQuizCard() {
+  const [quizState, setQuizState] = useState<QuizState>(loadQuizState)
+  const [showQuiz, setShowQuiz] = useState(false)
+  const [showRewards, setShowRewards] = useState(false)
+
+  const today = getTodayStr()
+  const alreadyPlayed = quizState.lastPlayedDate === today
+
+  // Check if streak is broken (missed a day)
+  useEffect(() => {
+    if (quizState.lastPlayedDate) {
+      const last = new Date(quizState.lastPlayedDate)
+      const diff = Math.floor((Date.now() - last.getTime()) / 86400000)
+      if (diff > 1 && quizState.streak > 0) {
+        const updated = { ...quizState, streak: 0 }
+        saveQuizState(updated)
+        setQuizState(updated)
+      }
+    }
+  }, [])
+
+  const handleFinished = (score: number, earned: number) => {
+    const yesterdayPlayed = quizState.lastPlayedDate === new Date(Date.now() - 86400000).toISOString().split('T')[0]
+    const newStreak = (score === 5 && (yesterdayPlayed || quizState.streak === 0)) ? quizState.streak + 1 : quizState.streak
+    const updated: QuizState = {
+      lastPlayedDate: today,
+      streak: newStreak,
+      totalPoints: quizState.totalPoints + earned,
+      lastScore: score,
+      todayCompleted: true,
+    }
+    saveQuizState(updated)
+    setQuizState(updated)
+    setShowQuiz(false)
+  }
+
+  const badge = getBadge(quizState.totalPoints)
+  const isNew = quizState.totalPoints === 0 && !alreadyPlayed
+
+  return (
+    <>
+      <div style={{ background: alreadyPlayed ? 'var(--surface)' : 'linear-gradient(135deg, rgba(62,213,152,0.12) 0%, rgba(100,149,237,0.08) 100%)', border: alreadyPlayed ? '1px solid var(--border-subtle)' : '1px solid rgba(62,213,152,0.3)', borderRadius:'var(--radius)', padding:'16px', display:'flex', gap:'14px', alignItems:'center', transition:'all var(--transition)', cursor: alreadyPlayed ? 'default' : 'pointer', position:'relative', overflow:'hidden' }}
+        onClick={() => !alreadyPlayed && setShowQuiz(true)}
+        onMouseEnter={e => { if (!alreadyPlayed) (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)' }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = '' }}
+      >
+        {/* Glow effect */}
+        {!alreadyPlayed && <div style={{ position:'absolute', top:'-30px', right:'-30px', width:'100px', height:'100px', background:'radial-gradient(circle, rgba(62,213,152,0.15) 0%, transparent 70%)', pointerEvents:'none' }}/>}
+
+        {/* Icon */}
+        <div style={{ width:'52px', height:'52px', borderRadius:'var(--radius)', background: alreadyPlayed ? 'var(--surface-2)' : 'linear-gradient(135deg, #3ED598, #6495ED)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'24px', flexShrink:0, boxShadow: alreadyPlayed ? 'none' : '0 4px 14px rgba(62,213,152,0.3)' }}>
+          {alreadyPlayed ? '✅' : isNew ? '🎮' : '🎯'}
+        </div>
+
+        {/* Text */}
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'3px', flexWrap:'wrap' }}>
+            <span style={{ fontSize:'14px', fontWeight:700, color:'var(--text)' }}>
+              {alreadyPlayed ? 'Reto completado hoy 🎉' : isNew ? '¡Nuevo! Reto Nutricional' : 'Reto del Día'}
+            </span>
+            {quizState.streak > 1 && (
+              <span style={{ fontSize:'11px', fontWeight:700, color:'#F5B841', background:'rgba(245,184,65,0.12)', padding:'2px 8px', borderRadius:'100px' }}>🔥 {quizState.streak} días seguidos</span>
+            )}
+          </div>
+          <p style={{ fontSize:'12px', color:'var(--text-secondary)', margin:0 }}>
+            {alreadyPlayed
+              ? `Sacaste ${quizState.lastScore}/5 · +${(quizState.lastScore??0)*10 + (quizState.lastScore===5?20:0)} puntos · Vuelve mañana`
+              : '5 preguntas sobre nutrición · Gana hasta 70 puntos'}
+          </p>
+        </div>
+
+        {/* Right side */}
+        <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'6px', flexShrink:0 }}>
+          <button onClick={(e) => { e.stopPropagation(); setShowRewards(true) }} style={{ background:'none', border:'none', cursor:'pointer', padding:'4px', borderRadius:'6px', display:'flex', alignItems:'center', gap:'4px', color:'var(--text-muted)', fontSize:'11px', transition:'all var(--transition)' }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.color='var(--text)'}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.color='var(--text-muted)'}
+          >
+            <span>{badge.emoji}</span>
+            <span style={{ fontFamily:'IBM Plex Mono', fontWeight:600 }}>{quizState.totalPoints}pts</span>
+          </button>
+          {!alreadyPlayed && (
+            <span style={{ fontSize:'10px', fontWeight:700, color:'var(--primary)', background:'var(--primary-dim)', padding:'3px 10px', borderRadius:'100px', border:'1px solid rgba(62,213,152,0.25)' }}>
+              ¡Jugar!
+            </span>
+          )}
+        </div>
+      </div>
+
+      {showQuiz && <DailyQuizModal onClose={() => setShowQuiz(false)} onFinished={handleFinished} />}
+      {showRewards && <RewardsModal onClose={() => setShowRewards(false)} state={quizState} />}
+    </>
+  )
+}
+
 // ── Chart types ────────────────────────────────────────────
 type ChartType = 'area' | 'bar'
 type GroupBy = 'day' | 'month' | 'year'
@@ -1314,6 +1684,9 @@ export function DashboardPage() {
             <ChevronRight size={14} style={{ color:'var(--text-muted)', flexShrink:0 }}/>
           </button>
         </div>
+
+        {/* ── Daily Quiz Card ── */}
+        <DailyQuizCard />
 
         {/* ── Urgency summary ── */}
         {(criticalItems.length > 0 || warningItems.length > 0) && (
