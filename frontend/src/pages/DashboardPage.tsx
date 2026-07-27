@@ -294,7 +294,7 @@ function DashboardDock({ onManual, onVoice, onReceipt }: { onManual:()=>void; on
     { icon:<Camera size={17}/>, label:'Con foto', onClick:onReceipt, color:'#F5B841' },
   ]
   return (
-    <div style={{ position:'fixed', bottom:'24px', right:'20px', zIndex:50, display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'10px' }}>
+    <div className="desktop-fab" style={{ position:'fixed', bottom:'24px', right:'20px', zIndex:50, display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'10px' }}>
       {open && actions.map((a,i)=>(
         <div key={i} style={{ display:'flex', alignItems:'center', gap:'8px', animation:`dockExpand 0.2s ease ${i*0.05}s both` }}>
           <div style={{ background:'var(--surface)', border:'1px solid var(--border-subtle)', borderRadius:'var(--radius-sm)', padding:'5px 12px', fontSize:'13px', fontWeight:500, whiteSpace:'nowrap', boxShadow:'var(--shadow)' }}>{a.label}</div>
