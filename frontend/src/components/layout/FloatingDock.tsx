@@ -153,9 +153,10 @@ interface FreshlyDockProps {
   onManual: () => void
   onVoice: () => void
   onReceipt: () => void
+  onPhoto?: () => void
 }
 
-export function FreshlyDock({ onManual, onVoice, onReceipt }: FreshlyDockProps) {
+export function FreshlyDock({ onManual, onVoice, onReceipt, onPhoto }: FreshlyDockProps) {
   const actions: DockAction[] = [
     {
       icon: <Leaf size={18} />,
@@ -171,7 +172,13 @@ export function FreshlyDock({ onManual, onVoice, onReceipt }: FreshlyDockProps) 
     },
     {
       icon: <Camera size={18} />,
-      label: 'Agregar con foto',
+      label: 'Foto de alimento (IA)',
+      onClick: onPhoto ?? (() => {}),
+      color: '#FF7F7F',
+    },
+    {
+      icon: <Camera size={18} />,
+      label: 'Foto de factura',
       onClick: onReceipt,
       color: '#F5B841',
     },

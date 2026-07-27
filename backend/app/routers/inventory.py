@@ -189,3 +189,28 @@ def expiring_items(
         .all()
     )
     return [_enrich(i) for i in items]
+
+
+from fastapi import UploadFile, File as FastAPIFile
+from app.services.purchase_parser import analyze_food_photo
+
+
+@router.post("/analyze-photo")
+async def analyze_inventory_photo(
+    file: UploadFile = FastAPIFile(...),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    """Analiza una foto de alimentos y retorna los alimentos detectados con cantidad estimada."""
+    allowed = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+    if file.content_type not in allowed:
+        raise HTTPException(
+            status_code=400,
+            detail="Solo se aceptan imágenes (JPEG, PNG, WebP)."
+        )
+
+    file_bytes = await file.read()
+    if len(file_bytes) > 10 * 1024 * 1024:  # 10 MB max
+        raise HTTPException(status_code=400, detail="La imagen no puede superar 10 MB.")
+
+    items = analyze_food_photo(file_bytes, file.content_type)
+    return {"items": items}

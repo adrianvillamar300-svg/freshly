@@ -64,6 +64,12 @@ export const inventoryApi = {
     api.post<InventoryItem>(`/inventory/${id}/consume`, { amount }).then(r => r.data),
   delete: (id: string) => api.delete(`/inventory/${id}`).then(r => r.data),
   expiring: (days?: number) => api.get<InventoryItem[]>('/inventory/expiring', { params: { days } }).then(r => r.data),
+  analyzePhoto: (file: File) => {
+    const form = new FormData(); form.append('file', file)
+    return api.post<{ items: Array<{ food_name: string; quantity: number; unit: string }> }>(
+      '/inventory/analyze-photo', form, { headers: { 'Content-Type': 'multipart/form-data' } }
+    ).then(r => r.data)
+  },
 }
 
 export const dashboardApi = {

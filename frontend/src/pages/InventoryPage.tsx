@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Package, Edit2, Trash2, Check, X, Minus, Plus } from 'lucide-react'
+import { Search, Package, Edit2, Trash2, Check, X, Minus, Plus, Camera, Upload, Loader } from 'lucide-react'
 import { formatDistanceToNow, format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Card } from '../components/ui/Card'
@@ -158,6 +158,209 @@ function ConsumeModal({ item, onClose, onDone }: { item:InventoryItem; onClose:(
   )
 }
 
+// ── Photo Analysis Modal ─────────────────────────────────────────────────────
+
+type DetectedItem = { food_name: string; quantity: number; unit: string; storage_location: string }
+
+function PhotoAnalysisModal({ onClose, onItemsAdded }: {
+  onClose: () => void
+  onItemsAdded: (items: DetectedItem[]) => void
+}) {
+  const { toast } = useToast()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+
+  const [preview, setPreview] = useState<string | null>(null)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [detected, setDetected] = useState<DetectedItem[] | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  const handleFile = async (file: File) => {
+    if (!file.type.startsWith('image/')) { toast('Solo se aceptan imágenes', 'error'); return }
+    const url = URL.createObjectURL(file)
+    setPreview(url)
+    setDetected(null)
+    setAnalyzing(true)
+    try {
+      const result = await inventoryApi.analyzePhoto(file)
+      const items: DetectedItem[] = result.items.map(i => ({ ...i, storage_location: 'pantry' }))
+      setDetected(items)
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail ?? 'Error al analizar la foto'
+      toast(msg, 'error')
+      setPreview(null)
+    } finally {
+      setAnalyzing(false)
+    }
+  }
+
+  const updateItem = (idx: number, field: keyof DetectedItem, value: string | number) => {
+    setDetected(prev => prev ? prev.map((it, i) => i === idx ? { ...it, [field]: value } : it) : prev)
+  }
+
+  const removeItem = (idx: number) => {
+    setDetected(prev => prev ? prev.filter((_, i) => i !== idx) : prev)
+  }
+
+  const handleSave = async () => {
+    if (!detected || detected.length === 0) return
+    setSaving(true)
+    try {
+      const added: DetectedItem[] = []
+      for (const item of detected) {
+        await inventoryApi.create({
+          food_name: item.food_name,
+          quantity: item.quantity,
+          unit: item.unit,
+          storage_location: item.storage_location,
+        })
+        added.push(item)
+      }
+      toast(`✅ ${added.length} alimento${added.length !== 1 ? 's' : ''} agregado${added.length !== 1 ? 's' : ''} al inventario`)
+      onItemsAdded(added)
+      onClose()
+    } catch { toast('Error al guardar los alimentos', 'error') } finally { setSaving(false) }
+  }
+
+  return (
+    <Modal isOpen onClose={onClose} title="📸 Foto de alimento — IA" size="md">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+        {/* Upload area */}
+        {!preview && (
+          <div>
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '14px' }}>
+              Toma o sube una foto de tus alimentos y la IA identificará qué hay y en qué cantidad.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <button
+                onClick={() => cameraInputRef.current?.click()}
+                style={{
+                  padding: '20px 12px', borderRadius: 'var(--radius)', border: '1.5px dashed #FF7F7F88',
+                  background: '#FF7F7F0A', cursor: 'pointer', display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', gap: '8px', color: '#FF7F7F', transition: 'all var(--transition)',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = '#FF7F7F18'}
+                onMouseLeave={e => e.currentTarget.style.background = '#FF7F7F0A'}
+              >
+                <Camera size={24} />
+                <span style={{ fontSize: '13px', fontWeight: 500 }}>Tomar foto</span>
+              </button>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  padding: '20px 12px', borderRadius: 'var(--radius)', border: '1.5px dashed var(--border-subtle)',
+                  background: 'var(--surface-2)', cursor: 'pointer', display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', gap: '8px', color: 'var(--text-secondary)', transition: 'all var(--transition)',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-3)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'var(--surface-2)'}
+              >
+                <Upload size={24} />
+                <span style={{ fontSize: '13px', fontWeight: 500 }}>Subir foto</span>
+              </button>
+            </div>
+            <input ref={cameraInputRef} type="file" accept="image/*" capture="environment"
+              style={{ display: 'none' }} onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
+            <input ref={fileInputRef} type="file" accept="image/*"
+              style={{ display: 'none' }} onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
+          </div>
+        )}
+
+        {/* Preview */}
+        {preview && (
+          <div style={{ position: 'relative' }}>
+            <img src={preview} alt="Foto del alimento" style={{
+              width: '100%', maxHeight: '220px', objectFit: 'cover',
+              borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)',
+            }} />
+            {!analyzing && (
+              <button onClick={() => { setPreview(null); setDetected(null) }} style={{
+                position: 'absolute', top: '8px', right: '8px', width: '28px', height: '28px',
+                borderRadius: '50%', background: 'rgba(0,0,0,0.6)', border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff',
+              }}><X size={14} /></button>
+            )}
+          </div>
+        )}
+
+        {/* Analyzing state */}
+        {analyzing && (
+          <div style={{ textAlign: 'center', padding: '16px 0', color: 'var(--text-secondary)' }}>
+            <Loader size={24} style={{ animation: 'spin 1s linear infinite', marginBottom: '8px' }} />
+            <p style={{ fontSize: '13px' }}>Analizando imagen con IA...</p>
+          </div>
+        )}
+
+        {/* Detected items */}
+        {detected && detected.length > 0 && (
+          <div>
+            <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', marginBottom: '10px' }}>
+              ✨ {detected.length} alimento{detected.length !== 1 ? 's' : ''} detectado{detected.length !== 1 ? 's' : ''} — revisa y ajusta:
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {detected.map((item, idx) => (
+                <div key={idx} style={{
+                  padding: '10px 12px', borderRadius: 'var(--radius-sm)',
+                  background: 'var(--surface-2)', border: '1px solid var(--border-subtle)',
+                  display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '8px', alignItems: 'center',
+                }}>
+                  <input
+                    value={item.food_name}
+                    onChange={e => updateItem(idx, 'food_name', e.target.value)}
+                    style={{ background: 'transparent', border: 'none', color: 'var(--text)', fontSize: '13px', fontWeight: 500, outline: 'none', minWidth: 0 }}
+                  />
+                  <input
+                    type="number" min="0.1" step="0.5"
+                    value={item.quantity}
+                    onChange={e => updateItem(idx, 'quantity', parseFloat(e.target.value) || 1)}
+                    style={{ width: '52px', textAlign: 'center', background: 'var(--surface)', border: '1px solid var(--border-subtle)', borderRadius: '6px', color: 'var(--text)', fontSize: '13px', padding: '4px 6px' }}
+                  />
+                  <select value={item.unit} onChange={e => updateItem(idx, 'unit', e.target.value)}
+                    style={{ background: 'var(--surface)', border: '1px solid var(--border-subtle)', borderRadius: '6px', color: 'var(--text)', fontSize: '12px', padding: '4px 6px' }}>
+                    {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                  </select>
+                  <button onClick={() => removeItem(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}><X size={14} /></button>
+                </div>
+              ))}
+            </div>
+
+            {/* Storage location (global for all) */}
+            <div style={{ marginTop: '12px' }}>
+              <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px' }}>¿Dónde los guardas?</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                {LOCATIONS.map(loc => (
+                  <button key={loc.value} onClick={() => setDetected(prev => prev ? prev.map(i => ({ ...i, storage_location: loc.value })) : prev)}
+                    style={{
+                      padding: '7px 10px', borderRadius: 'var(--radius-sm)', textAlign: 'left',
+                      background: detected[0]?.storage_location === loc.value ? `${loc.color}15` : 'var(--surface-2)',
+                      border: `1px solid ${detected[0]?.storage_location === loc.value ? loc.color : 'var(--border-subtle)'}`,
+                      cursor: 'pointer', fontSize: '12px',
+                      color: detected[0]?.storage_location === loc.value ? loc.color : 'var(--text-secondary)',
+                      fontWeight: detected[0]?.storage_location === loc.value ? 600 : 400,
+                    }}>{loc.label}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '4px' }}>
+          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
+          {detected && detected.length > 0 && (
+            <Button loading={saving} icon={<Check size={15} />} onClick={handleSave}>
+              Agregar {detected.length} alimento{detected.length !== 1 ? 's' : ''}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
+    </Modal>
+  )
+}
+
 export function InventoryPage() {
   const { toast } = useToast()
   const navigate = useNavigate()
@@ -170,6 +373,7 @@ export function InventoryPage() {
   const [addModal, setAddModal] = useState(false)
   const [addLoading, setAddLoading] = useState(false)
   const [deleteId, setDeleteId] = useState<string|null>(null)
+  const [photoModal, setPhotoModal] = useState(false)
 
   const load = () =>
     inventoryApi.list().then(setItems).catch(console.error).finally(()=>setLoading(false))
@@ -367,10 +571,18 @@ export function InventoryPage() {
         </div>
       </Modal>
 
+      {photoModal && (
+        <PhotoAnalysisModal
+          onClose={() => setPhotoModal(false)}
+          onItemsAdded={() => load()}
+        />
+      )}
+
       <FreshlyDock
         onManual={()=>setAddModal(true)}
         onVoice={()=>navigate('/purchases?action=voice')}
         onReceipt={()=>navigate('/purchases?action=receipt')}
+        onPhoto={()=>setPhotoModal(true)}
       />
     </>
   )

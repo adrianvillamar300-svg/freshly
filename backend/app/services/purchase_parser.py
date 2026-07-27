@@ -121,3 +121,53 @@ def parse_receipt_file(file_bytes: bytes, media_type: str) -> list[dict]:
             detail="No se pudo identificar ningún alimento en la factura. Prueba con una foto más clara.",
         )
     return items
+
+
+FOOD_PHOTO_SYSTEM_PROMPT = """Eres un asistente de inventario de alimentos. El usuario te envía una foto de alimentos (frutas, verduras, carnes, lácteos, etc.) que quiere agregar a su despensa.
+
+Analiza la imagen e identifica qué alimentos ves y estima la cantidad aproximada visible.
+
+Responde ÚNICAMENTE con un JSON válido, sin texto adicional, sin backticks de markdown. El formato exacto es:
+
+{"items": [{"food_name": "string", "quantity": number, "unit": "string"}]}
+
+Reglas:
+- "food_name": nombre del alimento en singular, primera letra mayúscula (ej: "Banana", "Manzana", "Zanahoria", "Pechuga de pollo").
+- "quantity": cantidad aproximada visible en la imagen. Si ves 4 bananas, quantity=4. Si ves un racimo grande, estima. Si ves un kilogramo aproximado de carne, pon 1.
+- "unit": usa "unidad" para frutas/verduras contables (bananas, manzanas, huevos), "kg" para carnes/quesos en bloque, "g" para porciones pequeñas, "l" o "ml" para líquidos en envase, "paquete" para empaques cerrados.
+- Si hay varios alimentos diferentes en la imagen, incluye cada uno como un ítem separado.
+- Si la imagen no muestra alimentos identificables, responde {"items": []}.
+- No incluyas ingredientes preparados, solo alimentos crudos o en su estado natural/empacado.
+
+Ejemplo: foto con 4 bananas y 2 manzanas → {"items": [{"food_name": "Banana", "quantity": 4, "unit": "unidad"}, {"food_name": "Manzana", "quantity": 2, "unit": "unidad"}]}
+"""
+
+
+def analyze_food_photo(file_bytes: bytes, media_type: str) -> list[dict]:
+    """Analiza una foto de alimentos (NO una factura) y retorna los alimentos detectados
+    con cantidad y unidad estimadas."""
+    prompt = "Identifica los alimentos en esta foto y estima la cantidad visible de cada uno."
+
+    try:
+        raw_response = call_claude_vision(
+            file_bytes, media_type, prompt=prompt, system=FOOD_PHOTO_SYSTEM_PROMPT, max_tokens=800
+        )
+        data = extract_json(raw_response)
+    except json.JSONDecodeError:
+        raise HTTPException(
+            status_code=502, detail="No se pudo interpretar la respuesta de la IA"
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502, detail=f"Error al conectar con el servicio de IA: {exc}"
+        )
+
+    items = data.get("items", [])
+    if not items:
+        raise HTTPException(
+            status_code=422,
+            detail="No se pudo identificar ningún alimento en la foto. Intenta con una foto más clara y con buena iluminación.",
+        )
+    return items
