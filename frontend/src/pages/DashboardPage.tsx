@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { DollarSign, ShoppingBag, Package, TrendingUp, TrendingDown, AlertTriangle, Check, Plus, Mic, MicOff, Camera, Leaf, BarChart2, Activity, ChevronRight, Flame, Clock, Refrigerator, Archive, Upload, Loader, X as XIcon, Sparkles, Receipt } from 'lucide-react'
-import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
+import { DollarSign, ShoppingBag, Package, TrendingUp, TrendingDown, AlertTriangle, Check, Plus, Mic, MicOff, Camera, Leaf, BarChart2, Activity, ChevronRight, Flame, Clock, Upload, Loader, X as XIcon, Sparkles, Receipt, CheckCircle2, Minus, Info, Apple, ShoppingCart, ArrowUpRight, ArrowDownRight, Lightbulb, Target } from 'lucide-react'
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell } from 'recharts'
 import { format, differenceInDays, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Card, StatCard } from '../components/ui/Card'
@@ -97,6 +97,478 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
       <div style={{ fontSize:'11px', color:'var(--text-secondary)', marginBottom:'4px' }}>{label}</div>
       <div style={{ fontSize:'16px', fontWeight:700, color:'var(--primary)', fontFamily:'Space Grotesk' }}>${payload[0].value.toFixed(2)}</div>
     </div>
+  )
+}
+
+// ── MODAL: Total Gastado ───────────────────────────────────
+function SpendingDetailModal({ isOpen, onClose, summary, spending }: {
+  isOpen: boolean; onClose: () => void
+  summary: DashboardSummary | null; spending: SpendingByDate[]
+}) {
+  const total = summary?.total_spent ?? 0
+  const avgPerPurchase = summary && summary.purchases_count > 0
+    ? total / summary.purchases_count : 0
+
+  const chartData = spending.slice(-14).map(s => ({
+    date: format(new Date(s.date + 'T00:00:00'), 'dd MMM', { locale: es }),
+    total: s.total,
+  }))
+
+  const tips = [
+    { icon:'📋', text:'Haz una lista antes de comprar — evita compras impulsivas y reduces hasta 20% tu gasto.' },
+    { icon:'📦', text:'Compra en cantidad alimentos no perecederos cuando estén en oferta.' },
+    { icon:'🗓️', text:'Planifica el menú semanal con anticipación para comprar solo lo necesario.' },
+    { icon:'🏷️', text:'Compara precios por unidad o kg, no por precio total del envase.' },
+    { icon:'🛒', text:'Evita ir al supermercado con hambre — tiendes a gastar más.' },
+    { icon:'🌱', text:'Los productos de temporada y locales suelen ser más baratos y frescos.' },
+  ]
+
+  const COLORS = ['#3ED598','#F5B841','#6495ED','#FF7F7F','#A3E07A','#C084FC']
+  const topFoods = (summary?.top_foods ?? []).slice(0, 5)
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="💰 Análisis de gasto" size="lg">
+      <div style={{ display:'flex', flexDirection:'column', gap:'20px' }}>
+        {/* Stats row */}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px' }}>
+          {[
+            { label:'Total gastado', value:`$${total.toFixed(2)}`, color:'var(--primary)' },
+            { label:'Promedio/compra', value:`$${avgPerPurchase.toFixed(2)}`, color:'var(--warning)' },
+            { label:'Compras totales', value:summary?.purchases_count ?? 0, color:'var(--info)' },
+          ].map(s => (
+            <div key={s.label} style={{ background:'var(--surface-2)', borderRadius:'var(--radius-sm)', padding:'12px', textAlign:'center' }}>
+              <div style={{ fontSize:'18px', fontWeight:700, color:s.color, fontFamily:'Space Grotesk' }}>{s.value}</div>
+              <div style={{ fontSize:'11px', color:'var(--text-muted)', marginTop:'2px' }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Chart */}
+        {chartData.length > 0 && (
+          <div>
+            <h4 style={{ fontSize:'13px', fontWeight:600, marginBottom:'10px', color:'var(--text-secondary)' }}>Últimas 2 semanas</h4>
+            <ResponsiveContainer width="100%" height={140}>
+              <AreaChart data={chartData} margin={{top:4,right:4,left:-20,bottom:0}}>
+                <defs>
+                  <linearGradient id="spendGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#3ED598" stopOpacity={0.3}/>
+                    <stop offset="100%" stopColor="#3ED598" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="date" tick={{fill:'var(--text-muted)',fontSize:9}} axisLine={false} tickLine={false}/>
+                <YAxis tick={{fill:'var(--text-muted)',fontSize:9}} axisLine={false} tickLine={false}/>
+                <Tooltip content={<CustomTooltip/>}/>
+                <Area type="monotone" dataKey="total" stroke="#3ED598" strokeWidth={2} fill="url(#spendGrad)" dot={false}/>
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {/* Top foods pie */}
+        {topFoods.length > 0 && (
+          <div>
+            <h4 style={{ fontSize:'13px', fontWeight:600, marginBottom:'10px', color:'var(--text-secondary)' }}>En qué gastas más</h4>
+            <div style={{ display:'flex', alignItems:'center', gap:'16px', flexWrap:'wrap' }}>
+              <PieChart width={100} height={100}>
+                <Pie data={topFoods} cx={45} cy={45} innerRadius={30} outerRadius={45} dataKey="quantity" paddingAngle={2}>
+                  {topFoods.map((_,i) => <Cell key={i} fill={COLORS[i % COLORS.length]}/>)}
+                </Pie>
+              </PieChart>
+              <div style={{ display:'flex', flexDirection:'column', gap:'6px', flex:1 }}>
+                {topFoods.map((f, i) => (
+                  <div key={f.food_name} style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                    <div style={{ width:'8px', height:'8px', borderRadius:'50%', background:COLORS[i % COLORS.length], flexShrink:0 }}/>
+                    <span style={{ fontSize:'12px', color:'var(--text)', flex:1 }}>{f.food_name}</span>
+                    <span style={{ fontSize:'11px', color:'var(--text-muted)', fontFamily:'IBM Plex Mono' }}>{f.quantity} {f.unit}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tips */}
+        <div>
+          <h4 style={{ fontSize:'13px', fontWeight:600, marginBottom:'10px', color:'var(--text-secondary)', display:'flex', alignItems:'center', gap:'6px' }}>
+            <Lightbulb size={14} style={{ color:'var(--warning)' }}/> Tips para ahorrar
+          </h4>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
+            {tips.map((tip, i) => (
+              <div key={i} style={{ padding:'10px 12px', background:'var(--surface-2)', borderRadius:'var(--radius-sm)', border:'1px solid var(--border-subtle)', display:'flex', gap:'8px', alignItems:'flex-start' }}>
+                <span style={{ fontSize:'16px', flexShrink:0 }}>{tip.icon}</span>
+                <span style={{ fontSize:'11.5px', color:'var(--text-secondary)', lineHeight:1.4 }}>{tip.text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+// ── MODAL: Compras ─────────────────────────────────────────
+function PurchasesDetailModal({ isOpen, onClose, summary }: {
+  isOpen: boolean; onClose: () => void; summary: DashboardSummary | null
+}) {
+  const count = summary?.purchases_count ?? 0
+  const total = summary?.total_spent ?? 0
+  const avg = count > 0 ? total / count : 0
+
+  const insights = [
+    { icon:'🛍️', label:'Total compras registradas', value: count },
+    { icon:'💵', label:'Gasto promedio por compra', value: `$${avg.toFixed(2)}` },
+    { icon:'🍽️', label:'Alimentos distintos comprados', value: summary?.distinct_foods ?? 0 },
+  ]
+
+  const howTos = [
+    { icon:'🎤', title:'Por voz', desc:'Di lo que compraste y la IA lo interpreta. Rápido y sin escribir.' },
+    { icon:'📸', title:'Foto de factura', desc:'Toma foto al ticket y se importa todo automáticamente.' },
+    { icon:'✍️', title:'Manual', desc:'Escribe cada alimento con su cantidad y dónde lo guardas.' },
+    { icon:'🤖', title:'Foto IA', desc:'Toma foto a tus alimentos y la IA identifica qué hay.' },
+  ]
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="🛒 Detalle de compras" size="md">
+      <div style={{ display:'flex', flexDirection:'column', gap:'18px' }}>
+        <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+          {insights.map(ins => (
+            <div key={ins.label} style={{ display:'flex', alignItems:'center', gap:'12px', padding:'12px 14px', background:'var(--surface-2)', borderRadius:'var(--radius-sm)', border:'1px solid var(--border-subtle)' }}>
+              <span style={{ fontSize:'20px' }}>{ins.icon}</span>
+              <span style={{ flex:1, fontSize:'13px', color:'var(--text-secondary)' }}>{ins.label}</span>
+              <span style={{ fontSize:'16px', fontWeight:700, color:'var(--primary)', fontFamily:'Space Grotesk' }}>{ins.value}</span>
+            </div>
+          ))}
+        </div>
+
+        <div>
+          <h4 style={{ fontSize:'13px', fontWeight:600, marginBottom:'10px', color:'var(--text-secondary)' }}>Cómo registrar compras</h4>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
+            {howTos.map(h => (
+              <div key={h.title} style={{ padding:'12px', background:'var(--surface-2)', borderRadius:'var(--radius-sm)', border:'1px solid var(--border-subtle)' }}>
+                <div style={{ fontSize:'20px', marginBottom:'6px' }}>{h.icon}</div>
+                <div style={{ fontSize:'12px', fontWeight:600, color:'var(--text)', marginBottom:'3px' }}>{h.title}</div>
+                <div style={{ fontSize:'11px', color:'var(--text-muted)', lineHeight:1.4 }}>{h.desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ padding:'12px 14px', background:'var(--primary-dim)', border:'1px solid rgba(62,213,152,0.2)', borderRadius:'var(--radius-sm)' }}>
+          <div style={{ fontSize:'12px', color:'var(--primary)', fontWeight:600, marginBottom:'4px' }}>💡 ¿Sabías que?</div>
+          <div style={{ fontSize:'12px', color:'var(--text-secondary)', lineHeight:1.5 }}>
+            Registrar tus compras te permite conocer tus patrones de consumo, evitar desperdicios y planificar mejor tu presupuesto mensual.
+          </div>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+// ── MODAL: Alimentos (con info nutricional IA) ─────────────
+function FoodsDetailModal({ isOpen, onClose, inventory, summary }: {
+  isOpen: boolean; onClose: () => void
+  inventory: InventoryItem[]; summary: DashboardSummary | null
+}) {
+  const [selectedFood, setSelectedFood] = useState<InventoryItem | null>(null)
+  const [nutritionInfo, setNutritionInfo] = useState<string | null>(null)
+  const [loadingNutrition, setLoadingNutrition] = useState(false)
+
+  const fetchNutrition = async (food: InventoryItem) => {
+    setSelectedFood(food)
+    setNutritionInfo(null)
+    setLoadingNutrition(true)
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 1000,
+          messages: [{
+            role: 'user',
+            content: `Dame información nutricional y de salud sobre: ${food.food_name}. 
+            Responde en español con este formato exacto (sin markdown, sin asteriscos):
+            CALORIAS: [número aproximado por 100g/unidad]
+            BENEFICIO CLAVE: [el beneficio más importante, 1 oración corta y clara]
+            VITAMINAS: [principales vitaminas/minerales, máx 3]
+            PARA QUE SIRVE: [2-3 beneficios concretos para la salud, cortos]
+            CONSUMIR: [frecuencia recomendada, 1 oración]
+            CONSEJO: [tip de preparación o consumo, 1 oración]`
+          }]
+        })
+      })
+      const data = await response.json()
+      setNutritionInfo(data.content?.[0]?.text ?? 'No se pudo obtener información.')
+    } catch {
+      setNutritionInfo('No se pudo cargar la información nutricional.')
+    } finally { setLoadingNutrition(false) }
+  }
+
+  const parseNutrition = (text: string) => {
+    const lines = text.split('\n').filter(l => l.trim())
+    const result: Record<string, string> = {}
+    lines.forEach(line => {
+      const [key, ...rest] = line.split(':')
+      if (key && rest.length) result[key.trim()] = rest.join(':').trim()
+    })
+    return result
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={selectedFood ? () => setSelectedFood(null) : onClose}
+      title={selectedFood ? `${getFoodEmoji(selectedFood.food_name)} ${selectedFood.food_name}` : '🥗 Tus alimentos'}
+      size="md">
+      {!selectedFood ? (
+        <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+          <p style={{ fontSize:'12.5px', color:'var(--text-secondary)' }}>
+            Tienes <strong style={{ color:'var(--primary)' }}>{inventory.length} alimentos</strong> en tu despensa. Toca uno para ver detalles nutricionales.
+          </p>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(120px, 1fr))', gap:'8px', maxHeight:'400px', overflowY:'auto' }}>
+            {inventory.map(item => (
+              <button key={item.id} onClick={() => fetchNutrition(item)} style={{
+                padding:'12px 8px', background:'var(--surface-2)', border:'1px solid var(--border-subtle)',
+                borderRadius:'var(--radius)', cursor:'pointer', textAlign:'center',
+                transition:'all var(--transition)',
+              }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.background = 'var(--primary-dim)' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; e.currentTarget.style.background = 'var(--surface-2)' }}>
+                <div style={{ fontSize:'24px', marginBottom:'6px' }}>{getFoodEmoji(item.food_name)}</div>
+                <div style={{ fontSize:'11.5px', fontWeight:600, color:'var(--text)', lineHeight:1.2 }}>{item.food_name}</div>
+                <div style={{ fontSize:'10px', color:'var(--text-muted)', marginTop:'3px' }}>{item.quantity} {item.unit}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
+          <button onClick={() => setSelectedFood(null)} style={{ alignSelf:'flex-start', fontSize:'12px', color:'var(--text-muted)', background:'none', border:'none', cursor:'pointer', display:'flex', alignItems:'center', gap:'4px', padding:0 }}>
+            ← Volver a la lista
+          </button>
+
+          {loadingNutrition ? (
+            <div style={{ textAlign:'center', padding:'40px 0', color:'var(--text-secondary)' }}>
+              <Loader size={24} style={{ animation:'spin 1s linear infinite', marginBottom:'8px', color:'var(--primary)' }}/>
+              <p style={{ fontSize:'13px' }}>Analizando con IA...</p>
+            </div>
+          ) : nutritionInfo ? (() => {
+            const info = parseNutrition(nutritionInfo)
+            return (
+              <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
+                {/* Calorias + beneficio */}
+                <div style={{ display:'grid', gridTemplateColumns:'auto 1fr', gap:'10px' }}>
+                  {info['CALORIAS'] && (
+                    <div style={{ background:'var(--primary-dim)', border:'1px solid rgba(62,213,152,0.2)', borderRadius:'var(--radius-sm)', padding:'14px', textAlign:'center', minWidth:'90px' }}>
+                      <div style={{ fontSize:'24px', fontWeight:800, color:'var(--primary)', fontFamily:'Space Grotesk' }}>{info['CALORIAS'].replace(/[^\d]/g,'')}</div>
+                      <div style={{ fontSize:'10px', color:'var(--text-muted)', marginTop:'2px' }}>kcal / 100g</div>
+                    </div>
+                  )}
+                  {info['BENEFICIO CLAVE'] && (
+                    <div style={{ background:'rgba(245,184,65,0.08)', border:'1px solid rgba(245,184,65,0.2)', borderRadius:'var(--radius-sm)', padding:'14px' }}>
+                      <div style={{ fontSize:'10px', fontWeight:700, color:'var(--warning)', marginBottom:'4px', textTransform:'uppercase', letterSpacing:'0.05em' }}>⭐ Beneficio clave</div>
+                      <div style={{ fontSize:'13px', color:'var(--text)', fontWeight:500, lineHeight:1.4 }}>{info['BENEFICIO CLAVE']}</div>
+                    </div>
+                  )}
+                </div>
+
+                {info['VITAMINAS'] && (
+                  <div style={{ padding:'10px 12px', background:'var(--surface-2)', borderRadius:'var(--radius-sm)', border:'1px solid var(--border-subtle)' }}>
+                    <div style={{ fontSize:'11px', fontWeight:600, color:'var(--text-secondary)', marginBottom:'5px' }}>💊 Vitaminas y minerales</div>
+                    <div style={{ fontSize:'13px', color:'var(--text)' }}>{info['VITAMINAS']}</div>
+                  </div>
+                )}
+
+                {info['PARA QUE SIRVE'] && (
+                  <div style={{ padding:'10px 12px', background:'var(--surface-2)', borderRadius:'var(--radius-sm)', border:'1px solid var(--border-subtle)' }}>
+                    <div style={{ fontSize:'11px', fontWeight:600, color:'var(--text-secondary)', marginBottom:'5px' }}>✅ Para qué sirve</div>
+                    <div style={{ fontSize:'13px', color:'var(--text)', lineHeight:1.5 }}>{info['PARA QUE SIRVE']}</div>
+                  </div>
+                )}
+
+                {info['CONSUMIR'] && (
+                  <div style={{ padding:'10px 12px', background:'var(--surface-2)', borderRadius:'var(--radius-sm)', border:'1px solid var(--border-subtle)' }}>
+                    <div style={{ fontSize:'11px', fontWeight:600, color:'var(--text-secondary)', marginBottom:'5px' }}>🗓️ Frecuencia recomendada</div>
+                    <div style={{ fontSize:'13px', color:'var(--text)' }}>{info['CONSUMIR']}</div>
+                  </div>
+                )}
+
+                {info['CONSEJO'] && (
+                  <div style={{ padding:'10px 12px', background:'rgba(100,149,237,0.08)', borderRadius:'var(--radius-sm)', border:'1px solid rgba(100,149,237,0.2)' }}>
+                    <div style={{ fontSize:'11px', fontWeight:600, color:'var(--info)', marginBottom:'5px' }}>💡 Consejo</div>
+                    <div style={{ fontSize:'13px', color:'var(--text)' }}>{info['CONSEJO']}</div>
+                  </div>
+                )}
+              </div>
+            )
+          })() : null}
+        </div>
+      )}
+    </Modal>
+  )
+}
+
+// ── MODAL: Semana Anterior ─────────────────────────────────
+function WeekComparisonModal({ isOpen, onClose, summary, spending }: {
+  isOpen: boolean; onClose: () => void
+  summary: DashboardSummary | null; spending: SpendingByDate[]
+}) {
+  const wc = summary?.week_comparison
+  const diff = wc?.difference ?? 0
+  const pct = wc?.percentage ?? 0
+  const isUp = diff > 0
+  const current = wc?.current_week ?? 0
+  const previous = wc?.previous_week ?? 0
+
+  const weeklyData = [
+    { name: 'Semana anterior', total: previous, fill: '#6495ED' },
+    { name: 'Esta semana', total: current, fill: isUp ? '#FF7F7F' : '#3ED598' },
+  ]
+
+  const advice = isUp
+    ? [
+        'Revisa si hubo compras impulsivas no planeadas.',
+        'Trata de planificar el menú antes de comprar.',
+        'Compara precios entre diferentes tiendas.',
+        'Evalúa si compraste alimentos que ya tenías en casa.',
+      ]
+    : [
+        '¡Excelente! Estás optimizando tu presupuesto.',
+        'Sigue planificando tus comidas con anticipación.',
+        'Considera guardar el ahorro para semanas de más gasto.',
+        'Comparte tus hábitos de ahorro con tu familia.',
+      ]
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="📊 Comparación semanal" size="md">
+      <div style={{ display:'flex', flexDirection:'column', gap:'18px' }}>
+        {/* Comparison visual */}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr auto 1fr', gap:'10px', alignItems:'center' }}>
+          <div style={{ background:'var(--surface-2)', borderRadius:'var(--radius-sm)', padding:'14px', textAlign:'center' }}>
+            <div style={{ fontSize:'11px', color:'var(--text-muted)', marginBottom:'4px' }}>Semana anterior</div>
+            <div style={{ fontSize:'22px', fontWeight:800, color:'#6495ED', fontFamily:'Space Grotesk' }}>${previous.toFixed(2)}</div>
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'4px' }}>
+            {isUp
+              ? <ArrowUpRight size={20} style={{ color:'var(--danger)' }}/>
+              : <ArrowDownRight size={20} style={{ color:'var(--primary)' }}/>}
+            <span style={{ fontSize:'13px', fontWeight:700, color: isUp ? 'var(--danger)' : 'var(--primary)' }}>
+              {isUp ? '+' : ''}{pct.toFixed(1)}%
+            </span>
+          </div>
+          <div style={{ background: isUp ? 'rgba(255,107,107,0.08)' : 'var(--primary-dim)', border:`1px solid ${isUp ? 'rgba(255,107,107,0.2)' : 'rgba(62,213,152,0.2)'}`, borderRadius:'var(--radius-sm)', padding:'14px', textAlign:'center' }}>
+            <div style={{ fontSize:'11px', color:'var(--text-muted)', marginBottom:'4px' }}>Esta semana</div>
+            <div style={{ fontSize:'22px', fontWeight:800, color: isUp ? 'var(--danger)' : 'var(--primary)', fontFamily:'Space Grotesk' }}>${current.toFixed(2)}</div>
+          </div>
+        </div>
+
+        {/* Bar chart */}
+        <ResponsiveContainer width="100%" height={120}>
+          <BarChart data={weeklyData} margin={{top:4,right:4,left:-20,bottom:0}}>
+            <XAxis dataKey="name" tick={{fill:'var(--text-muted)',fontSize:11}} axisLine={false} tickLine={false}/>
+            <YAxis tick={{fill:'var(--text-muted)',fontSize:10}} axisLine={false} tickLine={false}/>
+            <Bar dataKey="total" radius={[6,6,0,0]}>
+              {weeklyData.map((entry, i) => <Cell key={i} fill={entry.fill}/>)}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+
+        {/* Difference summary */}
+        <div style={{ padding:'12px 14px', background: isUp ? 'rgba(255,107,107,0.08)' : 'var(--primary-dim)', border:`1px solid ${isUp ? 'rgba(255,107,107,0.2)' : 'rgba(62,213,152,0.2)'}`, borderRadius:'var(--radius-sm)' }}>
+          <div style={{ fontSize:'12px', fontWeight:600, color: isUp ? 'var(--danger)' : 'var(--primary)', marginBottom:'4px' }}>
+            {isUp ? '⬆️ Gastaste más esta semana' : '⬇️ Ahorraste esta semana'}
+          </div>
+          <div style={{ fontSize:'13px', color:'var(--text)' }}>
+            {isUp ? `Gastaste $${Math.abs(diff).toFixed(2)} más que la semana pasada.` : `Ahorraste $${Math.abs(diff).toFixed(2)} comparado a la semana pasada.`}
+          </div>
+        </div>
+
+        {/* Advice */}
+        <div>
+          <h4 style={{ fontSize:'13px', fontWeight:600, marginBottom:'10px', color:'var(--text-secondary)', display:'flex', alignItems:'center', gap:'6px' }}>
+            <Target size={13}/> {isUp ? 'Cómo mejorar' : 'Sigue así'}
+          </h4>
+          <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+            {advice.map((a, i) => (
+              <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:'8px', padding:'8px 10px', background:'var(--surface-2)', borderRadius:'var(--radius-sm)' }}>
+                <span style={{ fontSize:'14px', marginTop:'1px' }}>{isUp ? '💡' : '✅'}</span>
+                <span style={{ fontSize:'12px', color:'var(--text-secondary)', lineHeight:1.4 }}>{a}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+// ── Consume Confirm Modal ──────────────────────────────────
+function ConsumeModal({ item, onClose, onConsumed }: {
+  item: InventoryItem; onClose: () => void; onConsumed: () => void
+}) {
+  const { toast } = useToast()
+  const [amount, setAmount] = useState(1)
+  const [loading, setLoading] = useState(false)
+
+  const step = item.unit === 'kg' || item.unit === 'g' || item.unit === 'L' || item.unit === 'ml' ? 0.1 : 1
+  const max = item.quantity
+
+  const handleConsume = async () => {
+    setLoading(true)
+    try {
+      await inventoryApi.consume(item.id, amount)
+      toast(`✅ ${item.food_name} actualizado`)
+      onConsumed()
+      onClose()
+    } catch {
+      toast('Error al actualizar', 'error')
+    } finally { setLoading(false) }
+  }
+
+  return (
+    <Modal isOpen onClose={onClose} title="✅ Ya lo consumí" size="sm">
+      <div style={{ display:'flex', flexDirection:'column', gap:'18px' }}>
+        <div style={{ textAlign:'center', padding:'8px 0' }}>
+          <div style={{ fontSize:'40px', marginBottom:'8px' }}>{getFoodEmoji(item.food_name)}</div>
+          <div style={{ fontSize:'16px', fontWeight:700, color:'var(--text)' }}>{item.food_name}</div>
+          <div style={{ fontSize:'12px', color:'var(--text-muted)', marginTop:'2px' }}>
+            Disponible: {item.quantity} {item.unit}
+          </div>
+        </div>
+
+        <div>
+          <label style={{ fontSize:'13px', fontWeight:500, color:'var(--text-secondary)', marginBottom:'10px', display:'block' }}>
+            ¿Cuánto consumiste?
+          </label>
+          <div style={{ display:'flex', alignItems:'center', gap:'12px', justifyContent:'center' }}>
+            <button
+              onClick={() => setAmount(a => Math.max(step, parseFloat((a - step).toFixed(2))))}
+              style={{ width:'36px', height:'36px', borderRadius:'50%', background:'var(--surface-2)', border:'1px solid var(--border-subtle)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:'var(--text)' }}>
+              <Minus size={15}/>
+            </button>
+            <div style={{ textAlign:'center', minWidth:'80px' }}>
+              <div style={{ fontSize:'24px', fontWeight:700, color:'var(--primary)', fontFamily:'Space Grotesk' }}>{amount}</div>
+              <div style={{ fontSize:'12px', color:'var(--text-muted)' }}>{item.unit}</div>
+            </div>
+            <button
+              onClick={() => setAmount(a => Math.min(max, parseFloat((a + step).toFixed(2))))}
+              style={{ width:'36px', height:'36px', borderRadius:'50%', background:'var(--surface-2)', border:'1px solid var(--border-subtle)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:'var(--text)' }}>
+              <Plus size={15}/>
+            </button>
+          </div>
+          {amount >= max && (
+            <p style={{ textAlign:'center', fontSize:'11px', color:'var(--warning)', marginTop:'8px' }}>
+              ⚠️ Esto eliminará el alimento del inventario
+            </p>
+          )}
+        </div>
+
+        <div style={{ display:'flex', gap:'10px', justifyContent:'flex-end' }}>
+          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
+          <Button loading={loading} icon={<CheckCircle2 size={15}/>} onClick={handleConsume}>
+            Confirmar
+          </Button>
+        </div>
+      </div>
+    </Modal>
   )
 }
 
@@ -462,9 +934,12 @@ function DashboardDock({ onManual, onVoice, onReceipt, onPhoto }: { onManual:()=
   )
 }
 
-// ── Inventory color grid ───────────────────────────────────
-function InventoryGrid({ items, loading }: { items: InventoryItem[], loading: boolean }) {
+// ── Inventory color grid with consume button ───────────────
+function InventoryGrid({ items, loading, onConsumed }: { items: InventoryItem[], loading: boolean, onConsumed: () => void }) {
   const navigate = useNavigate()
+  const [consumeItem, setConsumeItem] = useState<InventoryItem | null>(null)
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
+
   const sorted = [...items].sort((a, b) => {
     const da = a.days_remaining ?? 999
     const db = b.days_remaining ?? 999
@@ -481,55 +956,94 @@ function InventoryGrid({ items, loading }: { items: InventoryItem[], loading: bo
   )
 
   return (
-    <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(140px, 1fr))', gap:'8px' }}>
-      {sorted.map((item, i) => {
-        const days = item.days_remaining
-        const color = getExpiryColor(days)
-        const bg = getExpiryBg(days)
-        const urgent = days !== null && days !== undefined && days <= 5
-        return (
-          <div key={item.id} style={{
-            background: bg && bg !== 'transparent' ? bg : 'var(--surface)',
-            border: `1.5px solid ${urgent ? color + '60' : 'var(--border-subtle)'}`,
-            borderRadius:'var(--radius)',
-            padding:'12px',
-            position:'relative',
-            overflow:'hidden',
-            animation:`countUp 0.3s ease ${Math.min(i, 12)*0.04}s both`,
-            boxShadow: urgent ? `0 0 0 1px ${color}25, 0 4px 16px ${color}20` : undefined,
-          }}>
-            {urgent && (
-              <div style={{ position:'absolute', top:0, left:0, right:0, height:'3px', background:`linear-gradient(90deg, ${color}, ${color}00)` }}/>
-            )}
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'6px' }}>
-              <span style={{ fontSize:'22px', lineHeight:1 }} title={getStorageIcon(item.storage_location)}>
-                {getFoodEmoji(item.food_name)}
-              </span>
-              {days !== null && days !== undefined && (
-                <span style={{ fontSize:'12px', fontWeight:800, color: (days<=5) ? '#0B0F0E' : color, background: (days<=5) ? color : `${color}22`, border: `1.5px solid ${color}`, padding:'2px 8px', borderRadius:'100px', fontFamily:'IBM Plex Mono' }}>
-                  {getExpiryLabel(days)}
-                </span>
+    <>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(140px, 1fr))', gap:'8px' }}>
+        {sorted.map((item, i) => {
+          const days = item.days_remaining
+          const color = getExpiryColor(days)
+          const bg = getExpiryBg(days)
+          const urgent = days !== null && days !== undefined && days <= 5
+          const isHovered = hoveredId === item.id
+          return (
+            <div key={item.id}
+              onMouseEnter={() => setHoveredId(item.id)}
+              onMouseLeave={() => setHoveredId(null)}
+              style={{
+                background: bg && bg !== 'transparent' ? bg : 'var(--surface)',
+                border: `1.5px solid ${isHovered ? 'rgba(62,213,152,0.4)' : urgent ? color + '60' : 'var(--border-subtle)'}`,
+                borderRadius:'var(--radius)',
+                padding:'12px',
+                position:'relative',
+                overflow:'hidden',
+                animation:`countUp 0.3s ease ${Math.min(i, 12)*0.04}s both`,
+                boxShadow: isHovered ? '0 4px 20px rgba(62,213,152,0.15)' : urgent ? `0 0 0 1px ${color}25, 0 4px 16px ${color}20` : undefined,
+                transition:'all 0.2s ease',
+              }}>
+              {urgent && (
+                <div style={{ position:'absolute', top:0, left:0, right:0, height:'3px', background:`linear-gradient(90deg, ${color}, ${color}00)` }}/>
               )}
-            </div>
-            <div style={{ fontSize:'13px', fontWeight:600, color:'var(--text)', marginBottom:'2px', lineHeight:1.2 }}>
-              {item.food_name}
-            </div>
-            <div style={{ fontSize:'11px', color:'var(--text-muted)', fontFamily:'IBM Plex Mono' }}>
-              {getStorageIcon(item.storage_location)} {item.quantity} {item.unit}
-            </div>
-            {days !== null && days !== undefined && days <= 2 && (
-              <div style={{ marginTop:'6px', fontSize:'10px', color, fontWeight:700 }}>
-                {days <= 0 ? '⚠️ Consumir ya' : '🔥 Consumir pronto'}
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'6px' }}>
+                <span style={{ fontSize:'22px', lineHeight:1 }}>
+                  {getFoodEmoji(item.food_name)}
+                </span>
+                {days !== null && days !== undefined && (
+                  <span style={{ fontSize:'12px', fontWeight:800, color: (days<=5) ? '#0B0F0E' : color, background: (days<=5) ? color : `${color}22`, border: `1.5px solid ${color}`, padding:'2px 8px', borderRadius:'100px', fontFamily:'IBM Plex Mono' }}>
+                    {getExpiryLabel(days)}
+                  </span>
+                )}
               </div>
-            )}
-          </div>
-        )
-      })}
-    </div>
+              <div style={{ fontSize:'13px', fontWeight:600, color:'var(--text)', marginBottom:'2px', lineHeight:1.2 }}>
+                {item.food_name}
+              </div>
+              <div style={{ fontSize:'11px', color:'var(--text-muted)', fontFamily:'IBM Plex Mono', marginBottom: isHovered ? '8px' : '0', transition:'margin 0.2s ease' }}>
+                {getStorageIcon(item.storage_location)} {item.quantity} {item.unit}
+              </div>
+              {days !== null && days !== undefined && days <= 2 && !isHovered && (
+                <div style={{ marginTop:'6px', fontSize:'10px', color, fontWeight:700 }}>
+                  {days <= 0 ? '⚠️ Consumir ya' : '🔥 Consumir pronto'}
+                </div>
+              )}
+
+              {/* Consume button — appears on hover */}
+              <div style={{
+                overflow:'hidden', maxHeight: isHovered ? '32px' : '0',
+                transition:'max-height 0.2s ease, opacity 0.2s ease',
+                opacity: isHovered ? 1 : 0,
+              }}>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setConsumeItem(item) }}
+                  style={{
+                    width:'100%', padding:'5px 0',
+                    borderRadius:'var(--radius-sm)',
+                    background:'rgba(62,213,152,0.12)',
+                    border:'1px solid rgba(62,213,152,0.3)',
+                    color:'var(--primary)', cursor:'pointer',
+                    fontSize:'11px', fontWeight:600,
+                    display:'flex', alignItems:'center', justifyContent:'center', gap:'5px',
+                    transition:'all 0.15s ease',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(62,213,152,0.22)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'rgba(62,213,152,0.12)' }}>
+                  <CheckCircle2 size={12}/> Ya lo consumí
+                </button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {consumeItem && (
+        <ConsumeModal
+          item={consumeItem}
+          onClose={() => setConsumeItem(null)}
+          onConsumed={() => { setConsumeItem(null); onConsumed() }}
+        />
+      )}
+    </>
   )
 }
 
-// ── Inspiration section (paisajes + mensajes, estilo login) ─
+// ── Inspiration section ────────────────────────────────────
 const inspirationPhotos = {
   impact: 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?w=700&q=80',
   fresh: 'https://images.unsplash.com/photo-1490818387583-1baba5e638af?w=700&q=80',
@@ -651,6 +1165,7 @@ function InspirationSection({ summary }: { summary: DashboardSummary | null }) {
 // ── Chart types ────────────────────────────────────────────
 type ChartType = 'area' | 'bar'
 type GroupBy = 'day' | 'month' | 'year'
+type ActiveModal = 'spending' | 'purchases' | 'foods' | 'week' | null
 
 // ── Main Dashboard ─────────────────────────────────────────
 export function DashboardPage() {
@@ -667,6 +1182,7 @@ export function DashboardPage() {
   const [voiceOpen, setVoiceOpen] = useState(false)
   const [receiptOpen, setReceiptOpen] = useState(false)
   const [photoOpen, setPhotoOpen] = useState(false)
+  const [activeModal, setActiveModal] = useState<ActiveModal>(null)
 
   const loadData = async () => {
     setLoading(true)
@@ -716,7 +1232,6 @@ export function DashboardPage() {
   const weekPct = wc?.percentage ?? 0
   const weekUp = (wc?.difference ?? 0) > 0
 
-  // Urgency counts
   const criticalItems = inventory.filter(i => i.days_remaining !== null && i.days_remaining !== undefined && i.days_remaining <= 2)
   const warningItems = inventory.filter(i => i.days_remaining !== null && i.days_remaining !== undefined && i.days_remaining > 2 && i.days_remaining <= 5)
 
@@ -743,21 +1258,41 @@ export function DashboardPage() {
           )}
         </div>
 
-        {/* ── Stat cards ── */}
+        {/* ── Stat cards (clickeable) ── */}
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:'10px' }}>
           {loading ? Array.from({length:4}).map((_,i)=><CardSkeleton key={i}/>) : (<>
-            <StatCard label="Total gastado" value={`$${(summary?.total_spent??0).toFixed(2)}`} icon={<DollarSign size={17}/>} accent="var(--primary)"/>
-            <StatCard label="Compras" value={summary?.purchases_count??0} icon={<ShoppingBag size={17}/>} accent="var(--warning)"/>
-            <StatCard label="Alimentos" value={summary?.distinct_foods??0} icon={<Package size={17}/>} accent="var(--info)"/>
-            <div style={{ background:'var(--surface)', border:'1px solid var(--border-subtle)', borderRadius:'var(--radius)', padding:'16px', position:'relative', overflow:'hidden' }}>
-              <div style={{ position:'absolute', top:0, right:0, width:'60px', height:'60px', background:`radial-gradient(circle, ${weekUp?'rgba(255,107,107,0.12)':'rgba(62,213,152,0.12)'} 0%, transparent 70%)` }}/>
-              <div style={{ width:'32px', height:'32px', background:weekUp?'var(--danger-dim)':'var(--primary-dim)', borderRadius:'var(--radius-sm)', display:'flex', alignItems:'center', justifyContent:'center', color:weekUp?'var(--danger)':'var(--primary)', marginBottom:'10px' }}>
-                {weekUp ? <TrendingUp size={16}/> : <TrendingDown size={16}/>}
+            {/* Total gastado */}
+            <div onClick={() => setActiveModal('spending')} style={{ cursor:'pointer' }}>
+              <StatCard label="Total gastado" value={`$${(summary?.total_spent??0).toFixed(2)}`} icon={<DollarSign size={17}/>} accent="var(--primary)"
+                subtitle={<span style={{ fontSize:'10px', color:'var(--primary)', display:'flex', alignItems:'center', gap:'3px' }}>Ver análisis <ChevronRight size={10}/></span>} />
+            </div>
+            {/* Compras */}
+            <div onClick={() => setActiveModal('purchases')} style={{ cursor:'pointer' }}>
+              <StatCard label="Compras" value={summary?.purchases_count??0} icon={<ShoppingBag size={17}/>} accent="var(--warning)"
+                subtitle={<span style={{ fontSize:'10px', color:'var(--warning)', display:'flex', alignItems:'center', gap:'3px' }}>Ver detalle <ChevronRight size={10}/></span>} />
+            </div>
+            {/* Alimentos */}
+            <div onClick={() => setActiveModal('foods')} style={{ cursor:'pointer' }}>
+              <StatCard label="Alimentos" value={summary?.distinct_foods??0} icon={<Package size={17}/>} accent="var(--info)"
+                subtitle={<span style={{ fontSize:'10px', color:'var(--info)', display:'flex', alignItems:'center', gap:'3px' }}>Info nutricional <ChevronRight size={10}/></span>} />
+            </div>
+            {/* Semana anterior */}
+            <div onClick={() => setActiveModal('week')} style={{ cursor:'pointer' }}>
+              <div style={{ background:'var(--surface)', border:'1px solid var(--border-subtle)', borderRadius:'var(--radius)', padding:'16px', position:'relative', overflow:'hidden', transition:'all var(--transition)' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = weekUp ? 'rgba(255,107,107,0.4)' : 'rgba(62,213,152,0.4)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-subtle)' }}>
+                <div style={{ position:'absolute', top:0, right:0, width:'60px', height:'60px', background:`radial-gradient(circle, ${weekUp?'rgba(255,107,107,0.12)':'rgba(62,213,152,0.12)'} 0%, transparent 70%)`}}/>
+                <div style={{ width:'32px', height:'32px', background:weekUp?'var(--danger-dim)':'var(--primary-dim)', borderRadius:'var(--radius-sm)', display:'flex', alignItems:'center', justifyContent:'center', color:weekUp?'var(--danger)':'var(--primary)', marginBottom:'10px' }}>
+                  {weekUp ? <TrendingUp size={16}/> : <TrendingDown size={16}/>}
+                </div>
+                <div style={{ fontSize:'22px', fontWeight:700, fontFamily:'Space Grotesk', letterSpacing:'-0.03em', color:weekUp?'var(--danger)':'var(--primary)' }}>
+                  {weekUp?'+':''}{weekPct.toFixed(1)}%
+                </div>
+                <div style={{ fontSize:'12px', color:'var(--text-secondary)', marginTop:'2px' }}>vs semana anterior</div>
+                <div style={{ fontSize:'10px', color: weekUp ? 'var(--danger)' : 'var(--primary)', marginTop:'4px', display:'flex', alignItems:'center', gap:'3px' }}>
+                  Ver comparación <ChevronRight size={10}/>
+                </div>
               </div>
-              <div style={{ fontSize:'22px', fontWeight:700, fontFamily:'Space Grotesk', letterSpacing:'-0.03em', color:weekUp?'var(--danger)':'var(--primary)' }}>
-                {weekUp?'+':''}{weekPct.toFixed(1)}%
-              </div>
-              <div style={{ fontSize:'12px', color:'var(--text-secondary)', marginTop:'2px' }}>vs semana anterior</div>
             </div>
           </>)}
         </div>
@@ -820,10 +1355,9 @@ export function DashboardPage() {
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'14px', flexWrap:'wrap', gap:'8px' }}>
             <div>
               <h3 style={{ fontSize:'14px', fontWeight:600, marginBottom:'2px' }}>Tu despensa</h3>
-              <p style={{ fontSize:'11px', color:'var(--text-secondary)' }}>Ordenado por caducidad · código de colores</p>
+              <p style={{ fontSize:'11px', color:'var(--text-secondary)' }}>Pasa el cursor sobre un alimento para consumirlo</p>
             </div>
             <div style={{ display:'flex', alignItems:'center', gap:'10px', flexWrap:'wrap' }}>
-              {/* Legend */}
               <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
                 {[['var(--danger)','≤2d'],['var(--warning)','≤5d'],['var(--primary)','>5d']].map(([c,l])=>(
                   <div key={l} style={{ display:'flex', alignItems:'center', gap:'4px', fontSize:'10px', color:'var(--text-muted)' }}>
@@ -837,7 +1371,7 @@ export function DashboardPage() {
               </button>
             </div>
           </div>
-          <InventoryGrid items={inventory.slice(0, 16)} loading={invLoading} />
+          <InventoryGrid items={inventory.slice(0, 16)} loading={invLoading} onConsumed={refreshAll} />
         </Card>
 
         {/* ── Chart + Top foods ── */}
@@ -933,6 +1467,12 @@ export function DashboardPage() {
       <ReceiptModal isOpen={receiptOpen} onClose={()=>setReceiptOpen(false)} onSaved={refreshAll}/>
       {photoOpen && <PhotoAnalysisModal onClose={()=>setPhotoOpen(false)} onItemsAdded={()=>{ loadInventory(); loadData() }}/>}
       <DashboardDock onManual={()=>setManualOpen(true)} onVoice={()=>setVoiceOpen(true)} onReceipt={()=>setReceiptOpen(true)} onPhoto={()=>setPhotoOpen(true)}/>
+
+      {/* ── Detail Modals ── */}
+      <SpendingDetailModal isOpen={activeModal==='spending'} onClose={()=>setActiveModal(null)} summary={summary} spending={spending}/>
+      <PurchasesDetailModal isOpen={activeModal==='purchases'} onClose={()=>setActiveModal(null)} summary={summary}/>
+      <FoodsDetailModal isOpen={activeModal==='foods'} onClose={()=>setActiveModal(null)} inventory={inventory} summary={summary}/>
+      <WeekComparisonModal isOpen={activeModal==='week'} onClose={()=>setActiveModal(null)} summary={summary} spending={spending}/>
 
       <style>{`
         @keyframes leafFall {

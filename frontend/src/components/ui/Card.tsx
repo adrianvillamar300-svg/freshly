@@ -58,11 +58,14 @@ interface StatCardProps {
   icon: ReactNode
   trend?: { value: number; label: string }
   accent?: string
+  subtitle?: ReactNode
 }
 
-export function StatCard({ label, value, icon, trend, accent = 'var(--primary)' }: StatCardProps) {
+export function StatCard({ label, value, icon, trend, accent = 'var(--primary)', subtitle }: StatCardProps) {
   return (
-    <Card style={{ position: 'relative', overflow: 'hidden' }}>
+    <Card style={{ position: 'relative', overflow: 'hidden', transition: 'all var(--transition)' }}
+      onMouseEnter={e => { if (subtitle) { e.currentTarget.style.borderColor = accent + '60'; e.currentTarget.style.transform = 'translateY(-1px)' } }}
+      onMouseLeave={e => { if (subtitle) { e.currentTarget.style.borderColor = 'var(--border-subtle)'; e.currentTarget.style.transform = '' } }}>
       <div style={{
         position: 'absolute', top: 0, right: 0,
         width: '80px', height: '80px',
@@ -84,6 +87,7 @@ export function StatCard({ label, value, icon, trend, accent = 'var(--primary)' 
             {value}
           </div>
           <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '2px' }}>{label}</div>
+          {subtitle && <div style={{ marginTop: '4px' }}>{subtitle}</div>}
         </div>
         {trend && (
           <div style={{ fontSize: '12px', color: trend.value >= 0 ? 'var(--primary)' : 'var(--danger)' }}>
