@@ -124,13 +124,12 @@ function VoiceModal({ isOpen, onClose, onSaved }: { isOpen: boolean; onClose: ()
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const recognitionRef = useRef<SpeechRecognition | null>(null)
+  const isRecordingRef = useRef(false)
 
   const SpeechRecognitionAPI = (
     (window as unknown as Record<string, unknown>).SpeechRecognition ||
     (window as unknown as Record<string, unknown>).webkitSpeechRecognition
   ) as SpeechRecognitionConstructor | undefined
-
-  const isRecordingRef = useRef(false)
 
   const createAndStart = () => {
     if (!SpeechRecognitionAPI) return
@@ -147,6 +146,7 @@ function VoiceModal({ isOpen, onClose, onSaved }: { isOpen: boolean; onClose: ()
 
     r.onerror = (e: Event) => {
       const err = (e as unknown as { error: string }).error
+      // aborted y no-speech no son errores reales — onend se encargará de reiniciar
       if (err === 'aborted' || err === 'no-speech') return
       if (err === 'not-allowed' || err === 'service-not-allowed') {
         toast('Permiso de micrófono denegado. Habilítalo en la configuración del navegador.', 'error')
@@ -162,8 +162,9 @@ function VoiceModal({ isOpen, onClose, onSaved }: { isOpen: boolean; onClose: ()
     }
 
     r.onend = () => {
+      // La API para sola tras silencio en móvil — crear instancia nueva y reiniciar
       if (isRecordingRef.current) {
-        setTimeout(() => { if (isRecordingRef.current) createAndStart() }, 100)
+        setTimeout(() => { if (isRecordingRef.current) createAndStart() }, 150)
       }
     }
 
@@ -176,7 +177,6 @@ function VoiceModal({ isOpen, onClose, onSaved }: { isOpen: boolean; onClose: ()
       toast('Tu navegador no soporta reconocimiento de voz. Usa Chrome.', 'error')
       return
     }
-
     try {
       isRecordingRef.current = true
       setRecording(true)
